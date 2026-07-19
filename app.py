@@ -36,6 +36,9 @@ def verify_webhook():
     token = request.args.get("hub.verify_token")
     challenge = request.args.get("hub.challenge")
 
+    logger.info(f"TOKEN FROM META: {token}")
+    logger.info(f"TOKEN FROM ENV: {VERIFY_TOKEN}")
+
     if mode == "subscribe" and token == VERIFY_TOKEN:
         logger.info("Webhook verified successfully.")
         return challenge, 200
