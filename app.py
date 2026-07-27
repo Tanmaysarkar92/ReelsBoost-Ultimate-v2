@@ -1,3 +1,5 @@
+from video_generator import generate_video
+from whatsapp import send_text_message
 import os
 import logging
 import requests
@@ -145,6 +147,15 @@ def receive_message():
                 image_path = download_whatsapp_image(image_id)
 
                 logger.info(f"Saved : {image_path}")
+
+                video_path = generate_video(image_path)
+
+                logger.info(f"🎬 Video : {video_path}")
+
+                send_text_message(
+                    msg["from"],
+                    "✅ Video ready hoyeche backend e."
+                )
 
             else:
 
