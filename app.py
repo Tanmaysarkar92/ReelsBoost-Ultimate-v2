@@ -143,7 +143,9 @@ def receive_message():
                 image_id = msg["image"]["id"]
 
                 logger.info(f"📷 Image ID : {image_id}")
-
+                
+                logger.info(f"🆔 Message ID : {msg['id']}")
+                
                 image_path = download_whatsapp_image(image_id)
 
                 logger.info(f"Saved : {image_path}")
