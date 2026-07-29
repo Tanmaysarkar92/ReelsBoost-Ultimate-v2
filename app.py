@@ -152,6 +152,8 @@ def receive_message():
 
                 logger.info(f"🎬 Video : {video_path}")
 
+                logger.info("🚀 Sending Video Ready Message")
+                
                 send_text_message(
                     msg["from"],
                     "✅ Video ready hoyeche backend e."
