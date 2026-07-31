@@ -128,53 +128,54 @@ def receive_message():
 
         value = data["entry"][0]["changes"][0]["value"]
 
-if "messages" in value:
+        if "messages" in value:
 
-    msg = value["messages"][0]
-    message_id = msg["id"]
+            msg = value["messages"][0]
+            message_id = msg["id"]
 
-    if message_id in processed_messages:
-        logger.info(f"⚠️ Duplicate Message Ignored: {message_id}")
-        return jsonify({"status": "duplicate"}), 200
+            if message_id in processed_messages:
+                logger.info(f"⚠️ Duplicate Message Ignored: {message_id}")
+                return jsonify({"status": "duplicate"}), 200
 
-    processed_messages.add(message_id)
+            processed_messages.add(message_id)
 
-    if msg["type"] == "text":
+            if msg["type"] == "text":
 
-        text = msg["text"]["body"]
-
-        logger.info(f"📩 Text : {text}")
+                text = msg["text"]["body"]
+                logger.info(f"📩 Text : {text}")
 
             elif msg["type"] == "image":
 
-    image_id = msg["image"]["id"]
+                image_id = msg["image"]["id"]
 
-    logger.info(f"📷 Image ID : {image_id}")
-    logger.info(f"🆔 Message ID : {msg['id']}")
+                logger.info(f"📷 Image ID : {image_id}")
+                logger.info(f"🆔 Message ID : {message_id}")
 
-    image_path = download_whatsapp_image(image_id)
+                image_path = download_whatsapp_image(image_id)
 
-    logger.info(f"Saved : {image_path}")
+                logger.info(f"Saved : {image_path}")
 
-    video_path = generate_video(image_path)
+                video_path = generate_video(image_path)
 
-    logger.info(f"🎬 Video : {video_path}")
+                logger.info(f"🎬 Video : {video_path}")
 
-    logger.info("🚀 Sending Video")
+                logger.info("🚀 Sending Video")
 
-    if video_path:
-        success = send_video_message(
-            msg["from"],
-            video_path
-        )
+                if video_path:
 
-        logger.info(f"✅ Video Send Status: {success}")
+                    success = send_video_message(
+                        msg["from"],
+                        video_path
+                    )
 
-    else:
-        send_text_message(
-            msg["from"],
-            "❌ Video Generate Failed"
-        )
+                    logger.info(f"✅ Video Send Status : {success}")
+
+                else:
+
+                    send_text_message(
+                        msg["from"],
+                        "❌ Video Generate Failed"
+                    )
 
             else:
 
@@ -191,17 +192,3 @@ if "messages" in value:
     return jsonify({
         "status": "received"
     }), 200
-
-
-# ==========================
-# Run
-# ==========================
-
-if __name__ == "__main__":
-
-    port = int(os.environ.get("PORT", 10000))
-
-    app.run(
-        host="0.0.0.0",
-        port=port
-    )
