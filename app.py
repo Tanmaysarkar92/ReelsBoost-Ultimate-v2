@@ -1,9 +1,9 @@
 from video_generator import generate_video
-from whatsapp import send_text_message
+from whatsapp import send_text_message, send_video_message
 import os
 import logging
 import requests
-
+processed_messages = set()
 from flask import Flask, request, jsonify
 
 from config import (
@@ -128,38 +128,53 @@ def receive_message():
 
         value = data["entry"][0]["changes"][0]["value"]
 
-        if "messages" in value:
+if "messages" in value:
 
-            msg = value["messages"][0]
+    msg = value["messages"][0]
+    message_id = msg["id"]
 
-            if msg["type"] == "text":
+    if message_id in processed_messages:
+        logger.info(f"⚠️ Duplicate Message Ignored: {message_id}")
+        return jsonify({"status": "duplicate"}), 200
 
-                text = msg["text"]["body"]
+    processed_messages.add(message_id)
 
-                logger.info(f"📩 Text : {text}")
+    if msg["type"] == "text":
+
+        text = msg["text"]["body"]
+
+        logger.info(f"📩 Text : {text}")
 
             elif msg["type"] == "image":
 
-                image_id = msg["image"]["id"]
+    image_id = msg["image"]["id"]
 
-                logger.info(f"📷 Image ID : {image_id}")
-                
-                logger.info(f"🆔 Message ID : {msg['id']}")
-                
-                image_path = download_whatsapp_image(image_id)
+    logger.info(f"📷 Image ID : {image_id}")
+    logger.info(f"🆔 Message ID : {msg['id']}")
 
-                logger.info(f"Saved : {image_path}")
+    image_path = download_whatsapp_image(image_id)
 
-                video_path = generate_video(image_path)
+    logger.info(f"Saved : {image_path}")
 
-                logger.info(f"🎬 Video : {video_path}")
+    video_path = generate_video(image_path)
 
-                logger.info("🚀 Sending Video Ready Message")
-                
-                send_text_message(
-                    msg["from"],
-                    "✅ Video ready hoyeche backend e."
-                )
+    logger.info(f"🎬 Video : {video_path}")
+
+    logger.info("🚀 Sending Video")
+
+    if video_path:
+        success = send_video_message(
+            msg["from"],
+            video_path
+        )
+
+        logger.info(f"✅ Video Send Status: {success}")
+
+    else:
+        send_text_message(
+            msg["from"],
+            "❌ Video Generate Failed"
+        )
 
             else:
 
