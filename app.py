@@ -1,4 +1,5 @@
 from video_generator import generate_video
+from voice_generator import generate_voice
 from whatsapp import send_text_message, send_video_message
 import os
 import logging
@@ -149,11 +150,18 @@ def receive_message():
                 image_id = msg["image"]["id"]
 
                 logger.info(f"📷 Image ID : {image_id}")
+                
                 logger.info(f"🆔 Message ID : {message_id}")
 
                 image_path = download_whatsapp_image(image_id)
 
                 logger.info(f"Saved : {image_path}")
+
+                caption = "Beautiful property available for sale."
+
+                voice_path = generate_voice(caption)
+
+                logger.info(f"🎤 Voice : {voice_path}")
 
                 video_path = generate_video(image_path)
 
