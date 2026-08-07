@@ -10,4 +10,4 @@ google-auth-httplib2
 gunicorn
 Pillow
 imageio-ffmpeg
-elevenlabs
+edge-tts
