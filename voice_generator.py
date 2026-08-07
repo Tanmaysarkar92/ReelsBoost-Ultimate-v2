@@ -1,15 +1,12 @@
 import os
+import asyncio
 import logging
-from elevenlabs.client import ElevenLabs
+import edge_tts
 
 logger = logging.getLogger("ReelsBoost")
 
-client = ElevenLabs(
-    api_key=os.getenv("ELEVENLABS_API_KEY")
-)
-
-# Rachel Voice (Professional English)
-VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
+# Microsoft Edge TTS voice
+VOICE = "en-US-AriaNeural"
 
 
 def generate_voice(text):
@@ -20,15 +17,16 @@ def generate_voice(text):
 
         output_path = os.path.join("outputs", "voice.mp3")
 
-        audio = client.text_to_speech.convert(
-            voice_id=VOICE_ID,
-            text=text,
-            model_id="eleven_multilingual_v2"
-        )
+        async def create_voice():
 
-        with open(output_path, "wb") as f:
-            for chunk in audio:
-                f.write(chunk)
+            communicate = edge_tts.Communicate(
+                text=text,
+                voice=VOICE
+            )
+
+            await communicate.save(output_path)
+
+        asyncio.run(create_voice())
 
         logger.info("✅ Voice Generated Successfully")
 
@@ -36,5 +34,6 @@ def generate_voice(text):
 
     except Exception as e:
 
-        logger.exception(e)
+        logger.exception("❌ TTS Error")
+
         return None
