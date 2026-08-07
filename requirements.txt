@@ -11,3 +11,8 @@ gunicorn
 Pillow
 imageio-ffmpeg
 edge-tts
+
+
+
+
+

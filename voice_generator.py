@@ -10,20 +10,16 @@ VOICE = "en-US-AriaNeural"
 
 
 def generate_voice(text):
-
     try:
-
         os.makedirs("outputs", exist_ok=True)
 
         output_path = os.path.join("outputs", "voice.mp3")
 
         async def create_voice():
-
             communicate = edge_tts.Communicate(
                 text=text,
                 voice=VOICE
             )
-
             await communicate.save(output_path)
 
         asyncio.run(create_voice())
@@ -33,7 +29,5 @@ def generate_voice(text):
         return output_path
 
     except Exception as e:
-
         logger.exception("❌ TTS Error")
-
         return None
