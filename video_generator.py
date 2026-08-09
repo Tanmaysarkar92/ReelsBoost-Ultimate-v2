@@ -1,8 +1,8 @@
 import os
 import logging
 import uuid
-
-from moviepy import ImageClip, AudioFileClip
+import subprocess
+import imageio_ffmpeg
 
 logger = logging.getLogger("ReelsBoost")
 
@@ -11,133 +11,86 @@ def generate_video(image_path, voice_path=None):
 
     try:
 
-        # ==================================================
-        # VALIDATE IMAGE
-        # ==================================================
-
-        if not image_path:
-
-            logger.error(
-                "❌ Image path is missing"
-            )
-
+        if not image_path or not os.path.exists(image_path):
+            logger.error(f"❌ Image not found: {image_path}")
             return None
 
-        if not os.path.exists(image_path):
+        if voice_path and not os.path.exists(voice_path):
+            logger.warning(f"⚠️ Voice not found: {voice_path}")
+            voice_path = None
 
-            logger.error(
-                f"❌ Image not found: {image_path}"
-            )
-
-            return None
-
-        # ==================================================
-        # VALIDATE VOICE
-        # ==================================================
-
-        if voice_path:
-
-            if not os.path.exists(voice_path):
-
-                logger.warning(
-                    f"⚠️ Voice file not found: {voice_path}"
-                )
-
-                voice_path = None
-
-        # ==================================================
-        # OUTPUT FOLDER
-        # ==================================================
-
-        os.makedirs(
-            "outputs",
-            exist_ok=True
-        )
-
-        # ==================================================
-        # UNIQUE OUTPUT FILE
-        # ==================================================
-
-        unique_id = uuid.uuid4().hex[:8]
+        os.makedirs("outputs", exist_ok=True)
 
         output_path = os.path.join(
             "outputs",
-            f"reel_{unique_id}.mp4"
+            f"reel_{uuid.uuid4().hex[:8]}.mp4"
         )
 
-        logger.info(
-            f"🎬 Video output: {output_path}"
-        )
+        ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
 
-        # ==================================================
-        # CREATE IMAGE CLIP
-        # ==================================================
-
-        logger.info(
-            "🖼️ Creating image clip..."
-        )
-
-        clip = (
-            ImageClip(image_path)
-            .with_duration(8)
-            .resized(width=1080)
-        )
-
-        # ==================================================
-        # ADD VOICE
-        # ==================================================
+        logger.info(f"🎬 FFmpeg: {ffmpeg}")
+        logger.info(f"🎬 Video output: {output_path}")
 
         if voice_path:
 
-            logger.info(
-                f"🎤 Adding voice: {voice_path}"
-            )
+            command = [
+                ffmpeg,
+                "-y",
+                "-loop", "1",
+                "-i", image_path,
+                "-i", voice_path,
+                "-t", "8",
+                "-vf",
+                "scale=1080:1920:force_original_aspect_ratio=decrease,"
+                "pad=1080:1920:(ow-iw)/2:(oh-ih)/2",
+                "-c:v", "libx264",
+                "-preset", "veryfast",
+                "-pix_fmt", "yuv420p",
+                "-c:a", "aac",
+                "-shortest",
+                output_path
+            ]
 
-            audio = AudioFileClip(
-                voice_path
-            )
+        else:
 
-            # Make video duration match audio
-            duration = min(
-                8,
-                audio.duration
-            )
+            command = [
+                ffmpeg,
+                "-y",
+                "-loop", "1",
+                "-i", image_path,
+                "-t", "8",
+                "-vf",
+                "scale=1080:1920:force_original_aspect_ratio=decrease,"
+                "pad=1080:1920:(ow-iw)/2:(oh-ih)/2",
+                "-c:v", "libx264",
+                "-preset", "veryfast",
+                "-pix_fmt", "yuv420p",
+                output_path
+            ]
 
-            clip = clip.with_duration(
-                duration
-            )
+        logger.info("🎥 Starting FFmpeg rendering...")
 
-            clip = clip.with_audio(
-                audio
-            )
-
-        # ==================================================
-        # WRITE VIDEO
-        # ==================================================
-
-        logger.info(
-            "🎥 Rendering MP4..."
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
         )
 
-        clip.write_videofile(
-            output_path,
-            fps=24,
-            codec="libx264",
-            audio_codec="aac",
-            logger="bar"
-        )
+        if result.returncode != 0:
+            logger.error("❌ FFmpeg failed")
+            logger.error(result.stderr[-3000:])
+            return None
 
-        # ==================================================
-        # CLOSE RESOURCES
-        # ==================================================
+        if not os.path.exists(output_path):
+            logger.error("❌ MP4 was not created")
+            return None
 
-        try:
-            clip.close()
-        except Exception:
-            pass
+        size = os.path.getsize(output_path)
 
         logger.info(
-            f"✅ Video generated successfully: {output_path}"
+            f"✅ Video generated successfully: "
+            f"{output_path} ({size} bytes)"
         )
 
         return output_path
@@ -145,7 +98,7 @@ def generate_video(image_path, voice_path=None):
     except Exception as e:
 
         logger.exception(
-            f"❌ Video generation failed: {e}"
+            f"❌ Video generation error: {e}"
         )
 
         return None
