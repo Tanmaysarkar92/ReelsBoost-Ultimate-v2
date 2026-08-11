@@ -11,13 +11,25 @@ def generate_video(image_path, voice_path=None):
 
     try:
 
+        # ==========================
+        # Check image
+        # ==========================
+
         if not image_path or not os.path.exists(image_path):
             logger.error(f"❌ Image not found: {image_path}")
             return None
 
+        # ==========================
+        # Check voice
+        # ==========================
+
         if voice_path and not os.path.exists(voice_path):
             logger.warning(f"⚠️ Voice not found: {voice_path}")
             voice_path = None
+
+        # ==========================
+        # Create output folder
+        # ==========================
 
         os.makedirs("outputs", exist_ok=True)
 
@@ -26,47 +38,87 @@ def generate_video(image_path, voice_path=None):
             f"reel_{uuid.uuid4().hex[:8]}.mp4"
         )
 
+        # ==========================
+        # FFmpeg
+        # ==========================
+
         ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
 
         logger.info(f"🎬 FFmpeg: {ffmpeg}")
         logger.info(f"🎬 Video output: {output_path}")
+
+        # ==========================
+        # Video + Voice
+        # ==========================
 
         if voice_path:
 
             command = [
                 ffmpeg,
                 "-y",
+
                 "-loop", "1",
                 "-i", image_path,
+
                 "-i", voice_path,
+
                 "-t", "8",
+
                 "-vf",
                 "scale=1080:1920:force_original_aspect_ratio=decrease,"
                 "pad=1080:1920:(ow-iw)/2:(oh-ih)/2",
+
+                "-r", "24",
+
                 "-c:v", "libx264",
-                "-preset", "veryfast",
+                "-preset", "ultrafast",
+                "-threads", "1",
                 "-pix_fmt", "yuv420p",
+
                 "-c:a", "aac",
+                "-b:a", "128k",
+
                 "-shortest",
+
+                "-movflags", "+faststart",
+
                 output_path
             ]
+
+        # ==========================
+        # Video without Voice
+        # ==========================
 
         else:
 
             command = [
                 ffmpeg,
                 "-y",
+
                 "-loop", "1",
                 "-i", image_path,
+
                 "-t", "8",
+
                 "-vf",
                 "scale=1080:1920:force_original_aspect_ratio=decrease,"
                 "pad=1080:1920:(ow-iw)/2:(oh-ih)/2",
+
+                "-r", "24",
+
                 "-c:v", "libx264",
-                "-preset", "veryfast",
+                "-preset", "ultrafast",
+                "-threads", "1",
                 "-pix_fmt", "yuv420p",
+
+                "-movflags", "+faststart",
+
                 output_path
             ]
+
+        # ==========================
+        # Render
+        # ==========================
 
         logger.info("🎥 Starting FFmpeg rendering...")
 
@@ -77,13 +129,25 @@ def generate_video(image_path, voice_path=None):
             text=True
         )
 
+        # ==========================
+        # FFmpeg Error
+        # ==========================
+
         if result.returncode != 0:
+
             logger.error("❌ FFmpeg failed")
             logger.error(result.stderr[-3000:])
+
             return None
 
+        # ==========================
+        # Check output
+        # ==========================
+
         if not os.path.exists(output_path):
+
             logger.error("❌ MP4 was not created")
+
             return None
 
         size = os.path.getsize(output_path)
