@@ -284,8 +284,135 @@ def process_image_message(
             f"✅ Video Generated: {video_path}"
         )
 
+               # ====================================================
+        # STEP 5 - AUTO POST TO FACEBOOK + YOUTUBE
         # ====================================================
-        # STEP 5 - SEND VIDEO TO WHATSAPP
+
+        logger.info(
+            "📤 Starting Facebook + YouTube auto-post..."
+        )
+
+        try:
+
+            from facebook import upload_to_facebook
+            from youtube import upload_to_youtube
+
+            caption = (
+                "🏡 Luxury Property Available!\n\n"
+                "Beautiful real estate property available for sale.\n"
+                "Contact us for more details.\n\n"
+                "#RealEstate #PropertyForSale "
+                "#LuxuryProperty #SarkarRobotics"
+            )
+
+            # =================================================
+            # FACEBOOK
+            # =================================================
+
+            logger.info(
+                "📘 Uploading video to Facebook..."
+            )
+
+            facebook_result = upload_to_facebook(
+                video_path,
+                caption
+            )
+
+            if facebook_result:
+
+                logger.info(
+                    "✅ Facebook auto-post successful"
+                )
+
+            else:
+
+                logger.error(
+                    "❌ Facebook auto-post failed"
+                )
+
+            # =================================================
+            # YOUTUBE
+            # =================================================
+
+            logger.info(
+                "▶️ Uploading video to YouTube..."
+            )
+
+            youtube_result = upload_to_youtube(
+                video_path,
+                "Luxury Property | Sarkar Robotics",
+                caption
+            )
+
+            if youtube_result:
+
+                logger.info(
+                    "✅ YouTube auto-post successful"
+                )
+
+            else:
+
+                logger.error(
+                    "❌ YouTube auto-post failed"
+                )
+
+            # =================================================
+            # POST STATUS
+            # =================================================
+
+            if facebook_result and youtube_result:
+
+                logger.info(
+                    "🎉 Facebook + YouTube auto-post completed"
+                )
+
+                send_text_message(
+                    phone_number,
+                    "🎬 তন্ময় ভাই, আপনার Luxury Property Reel Ready! ❤️\n\n"
+                    "✅ Facebook Page-এ পোস্ট হয়েছে\n"
+                    "✅ YouTube-এ পোস্ট হয়েছে\n\n"
+                    "🚀 Sarkar Robotics AI Reel Engine সফলভাবে কাজ করছে!"
+                )
+
+            elif facebook_result:
+
+                send_text_message(
+                    phone_number,
+                    "🎬 Reel তৈরি হয়েছে!\n\n"
+                    "✅ Facebook Page-এ পোস্ট হয়েছে\n"
+                    "⚠️ YouTube-এ পোস্ট হয়নি।"
+                )
+
+            elif youtube_result:
+
+                send_text_message(
+                    phone_number,
+                    "🎬 Reel তৈরি হয়েছে!\n\n"
+                    "⚠️ Facebook-এ পোস্ট হয়নি\n"
+                    "✅ YouTube-এ পোস্ট হয়েছে"
+                )
+
+            else:
+
+                send_text_message(
+                    phone_number,
+                    "🎬 Reel তৈরি হয়েছে, কিন্তু Facebook ও YouTube-এ পোস্ট করা যায়নি।"
+                )
+
+        except Exception as e:
+
+            logger.exception(
+                f"❌ Social media auto-post failed: {e}"
+            )
+
+            send_text_message(
+                phone_number,
+                "🎬 Reel তৈরি হয়েছে, কিন্তু Facebook/YouTube auto-post করতে সমস্যা হয়েছে।"
+            )
+
+
+        # ====================================================
+        # STEP 6 - SEND VIDEO TO WHATSAPP
         # ====================================================
 
         logger.info(
@@ -317,6 +444,7 @@ def process_image_message(
                 phone_number,
                 "❌ Reel তৈরি হয়েছে, কিন্তু WhatsApp-এ পাঠানো যায়নি।"
             )
+
 
     except Exception as e:
 
