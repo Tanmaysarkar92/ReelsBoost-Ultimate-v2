@@ -23,6 +23,7 @@ FB_PAGE_ACCESS_TOKEN = os.getenv("FB_PAGE_ACCESS_TOKEN")
 # ==============================
 
 YOUTUBE_CLIENT_SECRET = os.getenv("YOUTUBE_CLIENT_SECRET")
+YOUTUBE_TOKEN_JSON = os.getenv("YOUTUBE_TOKEN_JSON")
 YOUTUBE_TOKEN_FILE = "youtube_token.json"
 
 # ==============================
