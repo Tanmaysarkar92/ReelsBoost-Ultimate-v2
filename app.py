@@ -3,13 +3,17 @@ import logging
 import requests
 from flask import Flask, request, jsonify
 from concurrent.futures import ThreadPoolExecutor
-
+from groq import Groq
+import base64
 from config import (
     VERIFY_TOKEN,
     META_ACCESS_TOKEN,
-    IMAGE_FOLDER
+    IMAGE_FOLDER,
+    GROQ_API_KEY
 )
-
+groq_client = Groq(
+    api_key=GROQ_API_KEY
+)
 from video_generator import generate_video
 from voice_generator import generate_voice
 from whatsapp import (
@@ -143,7 +147,101 @@ def download_whatsapp_image(image_id):
 
         return None
 
+# ============================================================
+# AI PROPERTY CAPTION
+# ============================================================
 
+def generate_ai_caption(image_path):
+
+    try:
+
+        if not image_path or not os.path.exists(image_path):
+
+            logger.warning(
+                f"⚠️ Caption image not found: {image_path}"
+            )
+
+            return (
+                "Beautiful property available for sale. "
+                "Contact us for more details."
+            )
+
+        logger.info(
+            "🤖 Generating AI property caption..."
+        )
+
+        # Read image
+        with open(image_path, "rb") as image_file:
+
+            image_data = base64.b64encode(
+                image_file.read()
+            ).decode("utf-8")
+
+        response = groq_client.chat.completions.create(
+
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "Analyze this property photo and create "
+                                "one short natural real-estate narration "
+                                "for an 8-second video. "
+                                "Mention only details visible in the image. "
+                                "Do not invent price, location, bedrooms, "
+                                "amenities, or other facts. "
+                                "Return only the narration."
+                            )
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": (
+                                    "data:image/jpeg;base64,"
+                                    f"{image_data}"
+                                )
+                            }
+                        }
+                    ]
+                }
+            ],
+
+            max_tokens=80,
+            temperature=0.7
+        )
+
+        caption = (
+            response.choices[0]
+            .message.content
+            .strip()
+        )
+
+        if not caption:
+            raise ValueError(
+                "AI returned empty caption"
+            )
+
+        logger.info(
+            f"🤖 AI Caption: {caption}"
+        )
+
+        return caption
+
+    except Exception as e:
+
+        logger.warning(
+            f"⚠️ AI caption failed, using fallback: {e}"
+        )
+
+        return (
+            "Beautiful property available for sale. "
+            "Contact us for more details."
+        )
+    
 # ============================================================
 # BACKGROUND IMAGE PROCESSING
 # ============================================================
@@ -191,7 +289,7 @@ def process_image_message(
         image_path = download_whatsapp_image(
             image_id
         )
-
+        
         if not image_path:
 
             logger.error(
@@ -208,18 +306,17 @@ def process_image_message(
         logger.info(
             f"✅ Image ready: {image_path}"
         )
-
+        
+               # ====================================================
+        # STEP 2 - AI CAPTION
         # ====================================================
-        # STEP 2 - CAPTION
-        # ====================================================
 
-        caption = (
-            "Beautiful property available for sale. "
-            "Contact us for more details."
+        caption = generate_ai_caption(
+            image_path
         )
 
         logger.info(
-            f"📝 Caption: {caption}"
+            f"📝 AI Caption: {caption}"
         )
 
         # ====================================================
