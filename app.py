@@ -179,7 +179,7 @@ def generate_ai_caption(image_path):
 
         response = groq_client.chat.completions.create(
 
-            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            model="qwen/qwen3.6-27b",
 
             messages=[
                 {
