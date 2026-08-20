@@ -41,64 +41,162 @@ def send_text_message(to, message):
 
 def send_video_message(to, video_path):
 
-    headers = {
-        "Authorization": f"Bearer {META_ACCESS_TOKEN}"
-    }
+    try:
 
-    with open(video_path, "rb") as video_file:
+        # ====================================================
+        # STEP 1 - UPLOAD VIDEO TO WHATSAPP
+        # ====================================================
 
-        files = {
-            "file": (
-                os.path.basename(video_path),
-                video_file,
-                "video/mp4"
-            )
+        headers = {
+            "Authorization": f"Bearer {META_ACCESS_TOKEN}"
         }
 
-        data = {
-            "messaging_product": "whatsapp"
-        }
-
-        upload = requests.post(
-            MEDIA_URL,
-            headers=headers,
-            files=files,
-            data=data,
-            timeout=180
+        logger.info(
+            f"📤 Uploading video to WhatsApp: {video_path}"
         )
 
-    logger.info(upload.text)
+        with open(video_path, "rb") as video_file:
 
-    if upload.status_code != 200:
+            files = {
+                "file": (
+                    os.path.basename(video_path),
+                    video_file,
+                    "video/mp4"
+                )
+            }
+
+            data = {
+                "messaging_product": "whatsapp"
+            }
+
+            upload = requests.post(
+                MEDIA_URL,
+                headers=headers,
+                files=files,
+                data=data,
+                timeout=180
+            )
+
+        logger.info(
+            f"📦 WhatsApp media upload response: "
+            f"{upload.status_code} {upload.text}"
+        )
+
+        if not upload.ok:
+
+            logger.error(
+                f"❌ WhatsApp media upload failed: "
+                f"{upload.status_code} {upload.text}"
+            )
+
+            return False
+
+        upload_data = upload.json()
+
+        media_id = upload_data.get("id")
+
+        if not media_id:
+
+            logger.error(
+                "❌ WhatsApp media ID missing"
+            )
+
+            return False
+
+        logger.info(
+            f"✅ WhatsApp media uploaded: {media_id}"
+        )
+
+        # ====================================================
+        # STEP 2 - SEND VIDEO MESSAGE
+        # ====================================================
+
+        headers = {
+            "Authorization": f"Bearer {META_ACCESS_TOKEN}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": to,
+            "type": "video",
+            "video": {
+                "id": media_id,
+                "caption": "🎬 Sarkar Robotics AI Reel Ready!"
+            }
+        }
+
+        logger.info(
+            f"📤 Sending WhatsApp video to: {to}"
+        )
+
+        response = requests.post(
+            GRAPH_URL,
+            headers=headers,
+            json=payload,
+            timeout=60
+        )
+
+        logger.info(
+            f"📨 WhatsApp video response: "
+            f"{response.status_code} {response.text}"
+        )
+
+        # ====================================================
+        # STEP 3 - CHECK ACTUAL WHATSAPP RESPONSE
+        # ====================================================
+
+        if not response.ok:
+
+            logger.error(
+                f"❌ WhatsApp video message failed: "
+                f"{response.status_code} {response.text}"
+            )
+
+            return False
+
+        try:
+
+            response_data = response.json()
+
+        except Exception:
+
+            logger.error(
+                "❌ WhatsApp returned invalid JSON"
+            )
+
+            return False
+
+        messages = response_data.get(
+            "messages",
+            []
+        )
+
+        if messages and messages[0].get("id"):
+
+            message_id = messages[0]["id"]
+
+            logger.info(
+                f"✅ WhatsApp video message accepted: "
+                f"{message_id}"
+            )
+
+            return True
+
+        logger.error(
+            f"❌ WhatsApp response did not contain message ID: "
+            f"{response.text}"
+        )
+
         return False
 
-    media_id = upload.json()["id"]
+    except Exception as e:
 
-    headers = {
-        "Authorization": f"Bearer {META_ACCESS_TOKEN}",
-        "Content-Type": "application/json"
-    }
+        logger.exception(
+            f"❌ WhatsApp video sending exception: {e}"
+        )
 
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": to,
-        "type": "video",
-        "video": {
-            "id": media_id,
-            "caption": "🎬 Sarkar Robotics AI Reel Ready!"
-        }
-    }
-
-    response = requests.post(
-        GRAPH_URL,
-        headers=headers,
-        json=payload,
-        timeout=60
-    )
-
-    logger.info(response.text)
-
-    return response.status_code == 200
+        return False
 
 
 def parse_message(data):
