@@ -194,7 +194,10 @@ def generate_ai_caption(image_path):
                                 "Mention only details visible in the image. "
                                 "Do not invent price, location, bedrooms, "
                                 "amenities, or other facts. "
-                                "Return only the narration."
+                                "Return ONLY the final narration. "
+                                "Do not include thinking, analysis, "
+                                "explanations, bullet points, or "
+                                "<think> tags."
                             )
                         },
                         {
@@ -220,7 +223,37 @@ def generate_ai_caption(image_path):
             .strip()
         )
 
+        # ----------------------------------------------------
+        # REMOVE QWEN THINKING / REASONING
+        # ----------------------------------------------------
+
+        if "<think>" in caption:
+
+            caption = caption.split(
+                "<think>",
+                1
+            )[1]
+
+            if "</think>" in caption:
+
+                caption = caption.split(
+                    "</think>",
+                    1
+                )[1]
+
+            caption = caption.strip()
+
+        # ----------------------------------------------------
+        # CLEAN EXTRA MARKDOWN
+        # ----------------------------------------------------
+
+        caption = caption.replace(
+            "```",
+            ""
+        ).strip()
+
         if not caption:
+
             raise ValueError(
                 "AI returned empty caption"
             )
