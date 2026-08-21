@@ -223,7 +223,7 @@ def generate_ai_caption(image_path):
             .strip()
         )
 
-        # ----------------------------------------------------
+                # ----------------------------------------------------
         # REMOVE QWEN THINKING / REASONING
         # ----------------------------------------------------
 
@@ -234,29 +234,83 @@ def generate_ai_caption(image_path):
                 1
             )[1]
 
-            if "</think>" in caption:
+        if "</think>" in caption:
 
-                caption = caption.split(
-                    "</think>",
+            caption = caption.split(
+                "</think>",
+                1
+            )[1]
+
+        # ----------------------------------------------------
+        # REMOVE COMMON REASONING TEXT
+        # ----------------------------------------------------
+
+        reasoning_markers = [
+            "The user wants",
+            "The user is asking",
+            "I need to",
+            "I should",
+            "Let's analyze",
+            "Let's think",
+            "Analysis:",
+            "Reasoning:",
+            "We need to",
+            "The image shows"
+        ]
+
+        for marker in reasoning_markers:
+
+            if marker.lower() in caption.lower():
+
+                parts = caption.split(
+                    marker,
                     1
-                )[1]
+                )
 
-            caption = caption.strip()
+                if len(parts) == 2:
+
+                    possible_caption = (
+                        parts[1].strip()
+                    )
+
+                    if len(possible_caption) > 20:
+
+                        caption = possible_caption
 
         # ----------------------------------------------------
         # CLEAN EXTRA MARKDOWN
         # ----------------------------------------------------
 
         caption = caption.replace(
+            "```text",
+            ""
+        )
+
+        caption = caption.replace(
             "```",
             ""
-        ).strip()
+        )
+
+        caption = caption.replace(
+            "**",
+            ""
+        )
+
+        caption = caption.strip()
+
+        # ----------------------------------------------------
+        # EMPTY RESPONSE CHECK
+        # ----------------------------------------------------
 
         if not caption:
 
             raise ValueError(
                 "AI returned empty caption"
             )
+
+        # ----------------------------------------------------
+        # FINAL CAPTION
+        # ----------------------------------------------------
 
         logger.info(
             f"🤖 AI Caption: {caption}"
