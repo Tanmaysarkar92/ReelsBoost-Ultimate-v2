@@ -1,7 +1,9 @@
 import os
 import requests
 import logging
-
+import subprocess
+import tempfile
+from imageio_ffmpeg import get_ffmpeg_exe
 from config import META_ACCESS_TOKEN, PHONE_NUMBER_ID
 
 logger = logging.getLogger("ReelsBoost")
@@ -37,11 +39,89 @@ def send_text_message(to, message):
     logger.info(response.text)
 
     return response.status_code == 200
+def compress_video_for_whatsapp(video_path):
+    """
+    Compress video only when needed for WhatsApp.
+    Original video remains untouched.
+    """
 
+    try:
+        file_size_mb = os.path.getsize(video_path) / (1024 * 1024)
+
+        # Small videos don't need compression
+        if file_size_mb <= 12:
+            logger.info(
+                f"📱 WhatsApp video size OK: {file_size_mb:.2f} MB"
+            )
+            return video_path, None
+
+        ffmpeg = get_ffmpeg_exe()
+
+        compressed_path = os.path.join(
+            tempfile.gettempdir(),
+            f"whatsapp_{os.path.basename(video_path)}"
+        )
+
+        command = [
+            ffmpeg,
+            "-y",
+            "-i", video_path,
+            "-vf", "scale='min(720,iw)':-2",
+            "-c:v", "libx264",
+            "-preset", "veryfast",
+            "-crf", "28",
+            "-c:a", "aac",
+            "-b:a", "96k",
+            "-movflags", "+faststart",
+            compressed_path
+        ]
+
+        logger.info(
+            f"📦 Compressing WhatsApp video: "
+            f"{file_size_mb:.2f} MB"
+        )
+
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+
+        if result.returncode != 0:
+            logger.error(
+                f"❌ WhatsApp compression failed: "
+                f"{result.stderr[-1000:]}"
+            )
+            return video_path, None
+
+        new_size_mb = (
+            os.path.getsize(compressed_path)
+            / (1024 * 1024)
+        )
+
+        logger.info(
+            f"✅ WhatsApp compressed video: "
+            f"{new_size_mb:.2f} MB"
+        )
+
+        return compressed_path, compressed_path
+
+    except Exception as e:
+        logger.exception(
+            f"❌ WhatsApp compression error: {e}"
+        )
+        return video_path, None
 
 def send_video_message(to, video_path):
 
+    compressed_path = None
+
     try:
+
+        whatsapp_video_path, compressed_path = (
+            compress_video_for_whatsapp(video_path)
+        )
 
         # ====================================================
         # STEP 1 - UPLOAD VIDEO TO WHATSAPP
@@ -55,15 +135,15 @@ def send_video_message(to, video_path):
             f"📤 Uploading video to WhatsApp: {video_path}"
         )
 
-        with open(video_path, "rb") as video_file:
+        with open(whatsapp_video_path, "rb") as video_file:
 
             files = {
-                "file": (
-                    os.path.basename(video_path),
-                    video_file,
-                    "video/mp4"
-                )
-            }
+    "file": (
+        os.path.basename(whatsapp_video_path),
+        video_file,
+        "video/mp4"
+    )
+}
 
             data = {
                 "messaging_product": "whatsapp"

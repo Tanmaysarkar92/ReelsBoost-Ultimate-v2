@@ -1,33 +1,83 @@
 import os
 import logging
 import requests
-from flask import Flask, request, jsonify
+import sqlite3
+from flask import Flask, request, jsonify, render_template
 from concurrent.futures import ThreadPoolExecutor
 from groq import Groq
 import base64
+import razorpay
+
 from config import (
     VERIFY_TOKEN,
     META_ACCESS_TOKEN,
     IMAGE_FOLDER,
-    GROQ_API_KEY
+    GROQ_API_KEY,
+    RAZORPAY_KEY_ID,
+    RAZORPAY_KEY_SECRET,
+    RAZORPAY_WEBHOOK_SECRET
 )
+
 groq_client = Groq(
     api_key=GROQ_API_KEY
 )
+
+razorpay_client = razorpay.Client(
+    auth=(
+        RAZORPAY_KEY_ID,
+        RAZORPAY_KEY_SECRET
+    )
+)
+RAZORPAY_PLANS = {
+    "starter": "plan_TT8KV0NLz3Ocli",
+    "pro": "plan_TT8Np2cEB3rwr8",
+    "business": "plan_TT8PWX69j1s5Qz"
+}
+# ============================================================
+# CUSTOMER SUBSCRIPTION DATABASE
+# ============================================================
+
+DATABASE_FILE = "users.db"
+
+
+def init_database():
+
+    with sqlite3.connect(DATABASE_FILE) as conn:
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS subscribers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                whatsapp_number TEXT UNIQUE,
+                subscription_id TEXT UNIQUE,
+                plan TEXT,
+                status TEXT DEFAULT 'inactive',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        conn.commit()
+
+
+init_database()
 from video_generator import generate_video
 from voice_generator import generate_voice
 from whatsapp import (
     send_text_message,
     send_video_message
-)
-
-
+)    
 # ============================================================
 # APP
 # ============================================================
 
 app = Flask(__name__)
 
+@app.route("/payment", methods=["GET"])
+def payment_page():
+    return render_template(
+        "payment.html",
+        razorpay_key_id=RAZORPAY_KEY_ID
+    )
 
 # ============================================================
 # LOGGING
@@ -39,7 +89,180 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger("ReelsBoost")
+# ============================================================
+# RAZORPAY SUBSCRIPTION
+# ============================================================
 
+@app.route("/create-subscription", methods=["POST"])
+def create_subscription():
+
+    try:
+        data = request.get_json(silent=True) or {}
+
+        plan = data.get("plan")
+        customer_name = data.get("name", "")
+        customer_email = data.get("email", "")
+        customer_phone = data.get("phone", "")
+
+        if plan not in RAZORPAY_PLANS:
+            return jsonify({
+                "success": False,
+                "error": "Invalid plan"
+            }), 400
+
+        subscription = razorpay_client.subscription.create({
+            "plan_id": RAZORPAY_PLANS[plan],
+            "total_count": 12,
+            "customer_notify": 1,
+            "notes": {
+                "customer_name": customer_name,
+                "customer_email": customer_email,
+                "customer_phone": customer_phone,
+                "plan": plan
+            }
+        })
+
+        return jsonify({
+            "success": True,
+            "subscription_id": subscription["id"],
+            "plan": plan
+        }), 200
+
+    except Exception as e:
+
+        logger.exception(
+            "Razorpay subscription creation failed"
+        )
+
+        return jsonify({
+            "success": False,
+            "error": "Unable to create subscription"
+        }), 500
+
+# ============================================================
+# LOGGING
+# ============================================================
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s"
+)
+
+logger = logging.getLogger("ReelsBoost")
+# ============================================================
+# RAZORPAY WEBHOOK
+# ============================================================
+
+@app.route("/razorpay/webhook", methods=["POST"])
+def razorpay_webhook():
+
+    try:
+        body = request.get_data()
+        signature = request.headers.get("X-Razorpay-Signature")
+
+        if not signature:
+            return jsonify({"status": "missing signature"}), 400
+
+        razorpay_client.utility.verify_webhook_signature(
+            body,
+            signature,
+            RAZORPAY_WEBHOOK_SECRET
+        )
+
+        data = request.get_json(silent=True) or {}
+        event = data.get("event")
+
+        logger.info(f"Razorpay event: {event}")
+
+        subscription = (
+            data
+            .get("payload", {})
+            .get("subscription", {})
+            .get("entity", {})
+        )
+
+        subscription_id = subscription.get("id")
+
+        if not subscription_id:
+            return jsonify({"status": "received"}), 200
+
+        notes = subscription.get("notes") or {}
+
+        whatsapp_number = notes.get("customer_phone")
+        plan = notes.get("plan")
+
+        if event == "subscription.activated":
+
+            if whatsapp_number:
+
+                with sqlite3.connect(DATABASE_FILE) as conn:
+
+                    conn.execute("""
+                        INSERT INTO subscribers
+                        (
+                            whatsapp_number,
+                            subscription_id,
+                            plan,
+                            status
+                        )
+                        VALUES (?, ?, ?, 'active')
+
+                        ON CONFLICT(whatsapp_number)
+                        DO UPDATE SET
+                            subscription_id = excluded.subscription_id,
+                            plan = excluded.plan,
+                            status = 'active',
+                            updated_at = CURRENT_TIMESTAMP
+                    """, (
+                        whatsapp_number,
+                        subscription_id,
+                        plan
+                    ))
+
+                    conn.commit()
+
+                logger.info(
+                    f"Subscription ACTIVE: "
+                    f"{whatsapp_number} | {plan}"
+                )
+
+        elif event in (
+            "subscription.halted",
+            "subscription.cancelled",
+            "subscription.completed"
+        ):
+
+            new_status = {
+                "subscription.halted": "halted",
+                "subscription.cancelled": "cancelled",
+                "subscription.completed": "completed"
+            }[event]
+
+            with sqlite3.connect(DATABASE_FILE) as conn:
+
+                conn.execute("""
+                    UPDATE subscribers
+                    SET status = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE subscription_id = ?
+                """, (
+                    new_status,
+                    subscription_id
+                ))
+
+                conn.commit()
+
+        return jsonify({"status": "ok"}), 200
+
+    except Exception as e:
+
+        logger.exception(
+            f"Razorpay webhook error: {e}"
+        )
+
+        return jsonify({
+            "status": "invalid webhook"
+        }), 400
 
 # ============================================================
 # GLOBALS
