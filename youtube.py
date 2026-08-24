@@ -217,11 +217,14 @@ def get_youtube_service():
 def upload_to_youtube(
     video_path,
     title="Luxury Property | Sarkar Robotics",
-    description=(
-        "Beautiful property available for sale. "
-        "Contact us for more details."
-    ),
-    tags=None
+description=(
+    "Beautiful property available for sale.\n\n"
+    "Contact us for more details.\n\n"
+    "Subscribe to Sarkar Robotics for more property videos, "
+    "real estate updates, and luxury property listings.\n\n"
+    "#SarkarRobotics #RealEstate #PropertyForSale #LuxuryProperty"
+),
+tags=None
 ):
     """Upload an MP4 video to YouTube."""
 
@@ -258,14 +261,16 @@ def upload_to_youtube(
         # ====================================================
 
         if tags is None:
-
-            tags = [
-                "real estate",
-                "property",
-                "property for sale",
-                "luxury property",
-                "Sarkar Robotics"
-            ]
+    tags = [
+        "real estate",
+        "property",
+        "property for sale",
+        "luxury property",
+        "Sarkar Robotics",
+        "Sarkar Robotics property",
+        "luxury real estate",
+        "property listing"
+    ]
 
         # ====================================================
         # STEP 4 - VIDEO METADATA

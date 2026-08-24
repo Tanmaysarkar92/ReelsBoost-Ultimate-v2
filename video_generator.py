@@ -80,7 +80,7 @@ def generate_video(image_path, voice_path=None):
         video_filter = (
     "scale=1600:2844:force_original_aspect_ratio=increase,"
     "zoompan="
-    "z='1.0+0.18*on/192':"
+    "z='min(1.0+0.28*on/48,1.28)':"
     "x='(iw-iw/zoom)/2+90*sin(on/45)':"
     "y='(ih-ih/zoom)/2+60*cos(on/50)':"
     "d=1:"
