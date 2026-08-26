@@ -65,7 +65,7 @@ from voice_generator import generate_voice
 from whatsapp import (
     send_text_message,
     send_video_message
-)    
+)
 # ============================================================
 # APP
 # ============================================================
@@ -551,7 +551,97 @@ def generate_ai_caption(image_path):
             "Beautiful property available for sale. "
             "Contact us for more details."
         )
-    
+
+def generate_youtube_metadata(image_path):
+
+    try:
+
+        with open(image_path, "rb") as image_file:
+            image_data = base64.b64encode(
+                image_file.read()
+            ).decode("utf-8")
+
+        response = groq_client.chat.completions.create(
+            model="qwen/qwen3.6-27b",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "Analyze this property photo.\n\n"
+                                "Create YouTube metadata for a real-estate Short.\n"
+                                "Return EXACTLY in this format:\n"
+                                "TITLE: [short property-focused title]\n"
+                                "DESCRIPTION: [2-3 sentences describing only visible features]\n\n"
+                                "Rules:\n"
+                                "- Mention only things clearly visible in the image.\n"
+                                "- Never invent price, location, bedrooms or amenities.\n"
+                                "- Keep the title attractive and natural.\n"
+                                "- Do not put Sarkar Robotics in the main title topic.\n"
+                                "- Add '| Sarkar Robotics' at the end of the title.\n"
+                                "- Description must end with:\n"
+                                "Subscribe to Sarkar Robotics for more property inspiration and AI real-estate content.\n"
+                                "- Return ONLY TITLE and DESCRIPTION."
+                            )
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": (
+                                    "data:image/jpeg;base64,"
+                                    f"{image_data}"
+                                )
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens=220,
+            temperature=0.7
+        )
+
+        result = (
+            response.choices[0]
+            .message.content
+            .strip()
+        )
+
+        title = "Modern Property | Sarkar Robotics"
+        description = (
+            "Beautiful property available for sale.\n\n"
+            "Subscribe to Sarkar Robotics for more property "
+            "inspiration and AI real-estate content."
+        )
+
+        for line in result.splitlines():
+
+            if line.startswith("TITLE:"):
+                title = line.replace(
+                    "TITLE:", "", 1
+                ).strip()
+
+            elif line.startswith("DESCRIPTION:"):
+                description = line.replace(
+                    "DESCRIPTION:", "", 1
+                ).strip()
+
+        return title, description
+
+    except Exception as e:
+
+        logger.warning(
+            f"YouTube metadata generation failed: {e}"
+        )
+
+        return (
+            "Modern Property | Sarkar Robotics",
+            "Beautiful property available for sale.\n\n"
+            "Subscribe to Sarkar Robotics for more property "
+            "inspiration and AI real-estate content."
+        )
+
 # ============================================================
 # BACKGROUND IMAGE PROCESSING
 # ============================================================
@@ -599,7 +689,7 @@ def process_image_message(
         image_path = download_whatsapp_image(
             image_id
         )
-        
+
         if not image_path:
 
             logger.error(
@@ -616,8 +706,8 @@ def process_image_message(
         logger.info(
             f"✅ Image ready: {image_path}"
         )
-        
-               # ====================================================
+
+        # ====================================================
         # STEP 2 - AI CAPTION
         # ====================================================
 
@@ -628,6 +718,10 @@ def process_image_message(
         logger.info(
             f"📝 AI Caption: {caption}"
         )
+
+        youtube_title, youtube_description = generate_youtube_metadata(
+    image_path
+       )
 
         # ====================================================
         # STEP 3 - GENERATE VOICE
@@ -691,7 +785,7 @@ def process_image_message(
             f"✅ Video Generated: {video_path}"
         )
 
-               # ====================================================
+        # ====================================================
         # STEP 5 - AUTO POST TO FACEBOOK + YOUTUBE
         # ====================================================
 
@@ -747,9 +841,9 @@ def process_image_message(
             )
 
             youtube_result = upload_to_youtube(
-                video_path,
-                "Luxury Property | Sarkar Robotics",
-                caption
+            video_path,
+            youtube_title,
+            youtube_description
             )
 
             if youtube_result:
