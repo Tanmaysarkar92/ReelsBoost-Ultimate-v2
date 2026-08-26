@@ -261,16 +261,16 @@ tags=None
         # ====================================================
 
         if tags is None:
-    tags = [
-        "real estate",
-        "property",
-        "property for sale",
-        "luxury property",
-        "Sarkar Robotics",
-        "Sarkar Robotics property",
-        "luxury real estate",
-        "property listing"
-    ]
+            tags = [
+                "real estate",
+                "property",
+                "property for sale",
+                "luxury property",
+                "luxury real estate",
+                "property listing"
+            ]
+
+        # ====================================================
 
         # ====================================================
         # STEP 4 - VIDEO METADATA
