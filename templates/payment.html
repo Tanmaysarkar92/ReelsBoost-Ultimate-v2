@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+   
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <title>ReelsBoost - Choose Your Plan</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f5f7fb;
+            color: #111827;
+        }
+
+        .container {
+            max-width: 1050px;
+            margin: auto;
+            padding: 40px 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 35px;
+        }
+
+        .header h1 {
+            margin-bottom: 10px;
+            font-size: 34px;
+        }
+
+        .header p {
+            color: #6b7280;
+            font-size: 16px;
+        }
+
+        .plans {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .plan {
+            background: white;
+            border-radius: 16px;
+            padding: 28px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+        }
+
+        .plan h2 {
+            margin-top: 0;
+        }
+
+        .price {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+
+        .price span {
+            font-size: 14px;
+            color: #6b7280;
+            font-weight: normal;
+        }
+
+        .features {
+            min-height: 100px;
+            color: #4b5563;
+            line-height: 1.8;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border: 0;
+            border-radius: 10px;
+            background: #111827;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .form-box {
+            display: none;
+            background: white;
+            max-width: 500px;
+            margin: 30px auto 0;
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+        }
+
+        .form-box h2 {
+            margin-top: 0;
+        }
+
+        input {
+            width: 100%;
+            padding: 13px;
+            margin: 8px 0;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 15px;
+        }
+
+        .selected {
+            margin: 10px 0 15px;
+            font-weight: bold;
+        }
+
+        #message {
+            margin-top: 15px;
+            text-align: center;
+        }
+
+        @media (max-width: 800px) {
+            .plans {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 28px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="header">
+        <h1>🚀 ReelsBoost</h1>
+        <p>AI-powered Real Estate Reel Creation & Auto Posting</p>
+    </div>
+
+    <div class="plans">
+
+        <div class="plan">
+            <h2>Starter</h2>
+
+            <div class="price">
+                ₹299 <span>/ month</span>
+            </div>
+
+            <div class="features">
+                ✓ AI Reel Creation<br>
+                ✓ AI Caption<br>
+                ✓ WhatsApp Delivery
+            </div>
+
+            <button onclick="selectPlan('starter')">
+                Subscribe ₹299
+            </button>
+        </div>
+
+
+        <div class="plan">
+            <h2>Pro</h2>
+
+            <div class="price">
+                ₹499 <span>/ month</span>
+            </div>
+
+            <div class="features">
+                ✓ Everything in Starter<br>
+                ✓ AI Voice<br>
+                ✓ Facebook Auto Post<br>
+                ✓ YouTube Auto Post
+            </div>
+
+            <button onclick="selectPlan('pro')">
+                Subscribe ₹499
+            </button>
+        </div>
+
+
+        <div class="plan">
+            <h2>Business</h2>
+
+            <div class="price">
+                ₹999 <span>/ month</span>
+            </div>
+
+            <div class="features">
+                ✓ Everything in Pro<br>
+                ✓ Business Automation<br>
+                ✓ Priority Processing<br>
+                ✓ Advanced Reel Service
+            </div>
+
+            <button onclick="selectPlan('business')">
+                Subscribe ₹999
+            </button>
+        </div>
+
+    </div>
+
+
+    <div class="form-box" id="customerForm">
+
+        <h2>Complete Subscription</h2>
+
+        <div class="selected" id="selectedPlan"></div>
+
+        <input
+            type="text"
+            id="name"
+            placeholder="Your Name"
+        >
+
+        <input
+            type="email"
+            id="email"
+            placeholder="Email Address"
+        >
+
+        <input
+            type="tel"
+            id="phone"
+            placeholder="WhatsApp Number"
+        >
+
+        <button onclick="createSubscription()">
+            Continue to Payment
+        </button>
+
+        <div id="message"></div>
+
+    </div>
+
+</div>
+
+
+<script>
+
+let selectedPlan = "";
+
+function selectPlan(plan) {
+
+    selectedPlan = plan;
+
+    document.getElementById("customerForm").style.display = "block";
+
+    let planName = "";
+    let price = "";
+
+    if (plan === "starter") {
+        planName = "Starter";
+        price = "₹299/month";
+    }
+
+    if (plan === "pro") {
+        planName = "Pro";
+        price = "₹499/month";
+    }
+
+    if (plan === "business") {
+        planName = "Business";
+        price = "₹999/month";
+    }
+
+    document.getElementById("selectedPlan").innerText =
+        "Selected Plan: " + planName + " — " + price;
+
+    document.getElementById("customerForm")
+        .scrollIntoView({
+            behavior: "smooth"
+        });
+}
+
+
+async function createSubscription() {
+
+    const name =
+        document.getElementById("name").value.trim();
+
+    const email =
+        document.getElementById("email").value.trim();
+
+    const phone =
+        document.getElementById("phone").value.trim();
+
+    const message =
+        document.getElementById("message");
+
+
+    if (!name || !email || !phone) {
+
+        message.innerText =
+            "Please fill all details.";
+
+        return;
+    }
+
+
+    if (!selectedPlan) {
+
+        message.innerText =
+            "Please select a plan.";
+
+        return;
+    }
+
+
+    message.innerText =
+        "Creating subscription...";
+
+
+    try {
+
+        const response = await fetch(
+            "/create-subscription",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    plan: selectedPlan,
+                    name: name,
+                    email: email,
+                    phone: phone
+                })
+            }
+        );
+
+
+        const data = await response.json();
+
+
+        if (!data.success) {
+
+            message.innerText =
+                data.error || "Unable to create subscription.";
+
+            return;
+        }
+
+
+        /*
+         * Razorpay subscription checkout
+         *
+         * The backend returns the subscription ID.
+         */
+
+        const options = {
+
+            key: "{{ razorpay_key_id }}",
+
+            subscription_id:
+                data.subscription_id,
+
+            name: "ReelsBoost",
+
+            description:
+                "ReelsBoost Monthly Subscription",
+
+            prefill: {
+                name: name,
+                email: email,
+                contact: phone
+            },
+
+            theme: {
+                color: "#111827"
+            },
+
+            handler: function(response) {
+
+                message.innerText =
+                    "Payment initiated successfully. Your subscription is being activated.";
+
+            }
+
+        };
+
+
+        const rzp =
+            new Razorpay(options);
+
+        rzp.open();
+
+    } catch (error) {
+
+        console.error(error);
+
+        message.innerText =
+            "Something went wrong. Please try again.";
+
+    }
+
+}
+
+</script>
+
+</body>
+</html>
