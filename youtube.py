@@ -216,20 +216,26 @@ def get_youtube_service():
 
 def upload_to_youtube(
     video_path,
-    title="Luxury Property | Sarkar Robotics",
-description=(
-    "Beautiful property available for sale.\n\n"
-    "Contact us for more details.\n\n"
-    "Subscribe to Sarkar Robotics for more property videos, "
-    "real estate updates, and luxury property listings.\n\n"
-    "#SarkarRobotics #RealEstate #PropertyForSale #LuxuryProperty"
-),
-tags=None
+    title=None,
+    description=None,
+    tags=None
 ):
     """Upload an MP4 video to YouTube."""
 
     try:
 
+        if not title:
+            title = "🏠 Amazing Property Tour | Sarkar Robotics #Shorts"
+
+        if not description:
+            description = (
+                "🏠 Take a quick look at this beautiful property!\n\n"
+                "📍 Property details available on request.\n"
+                "📩 Contact us for more information.\n\n"
+                "🔔 Subscribe to Sarkar Robotics for more property tours, "
+                "real estate updates and property listings.\n\n"
+                "#Shorts #RealEstate #Property #PropertyForSale #SarkarRobotics"
+            )
         # ====================================================
         # STEP 1 - CHECK VIDEO
         # ====================================================
