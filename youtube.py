@@ -1,241 +1,13 @@
-import os
-import json
-import logging
-
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
-
-from config import (
-    YOUTUBE_CLIENT_SECRET,
-    YOUTUBE_TOKEN_JSON,
-    YOUTUBE_TOKEN_FILE
-)
-
-logger = logging.getLogger("ReelsBoost")
-
-SCOPES = [
-    "https://www.googleapis.com/auth/youtube.upload"
-]
-
-
-def get_youtube_service():
-    """Create authenticated YouTube API service."""
-
-    creds = None
-
-    # ====================================================
-    # STEP 1 - LOAD TOKEN FROM RENDER ENVIRONMENT
-    # ====================================================
-
-    token_json = os.getenv("YOUTUBE_TOKEN_JSON")
-
-    if token_json:
-
-        try:
-
-            logger.info(
-                "🔐 Loading YouTube OAuth token from environment..."
-            )
-
-            token_data = json.loads(token_json)
-
-            creds = Credentials.from_authorized_user_info(
-                token_data,
-                SCOPES
-            )
-
-            logger.info(
-                "✅ YouTube OAuth token loaded from environment"
-            )
-
-        except Exception as e:
-
-            logger.exception(
-                f"❌ Failed to load YOUTUBE_TOKEN_JSON: {e}"
-            )
-
-            creds = None
-
-    # ====================================================
-    # STEP 2 - LOCAL TOKEN FILE
-    # ====================================================
-
-    if creds is None and os.path.exists(YOUTUBE_TOKEN_FILE):
-
-        try:
-
-            logger.info(
-                f"🔐 Loading local YouTube token: "
-                f"{YOUTUBE_TOKEN_FILE}"
-            )
-
-            creds = Credentials.from_authorized_user_file(
-                YOUTUBE_TOKEN_FILE,
-                SCOPES
-            )
-
-            logger.info(
-                "✅ Local YouTube token loaded"
-            )
-
-        except Exception as e:
-
-            logger.exception(
-                f"❌ Failed to load local YouTube token: {e}"
-            )
-
-            creds = None
-
-    # ====================================================
-    # STEP 3 - REFRESH EXPIRED TOKEN
-    # ====================================================
-
-    if creds and creds.expired and creds.refresh_token:
-
-        try:
-
-            logger.info(
-                "🔄 Refreshing expired YouTube OAuth token..."
-            )
-
-            creds.refresh(Request())
-
-            logger.info(
-                "✅ YouTube OAuth token refreshed"
-            )
-
-        except Exception as e:
-
-            logger.exception(
-                f"❌ YouTube token refresh failed: {e}"
-            )
-
-            creds = None
-
-    # ====================================================
-    # STEP 4 - FIRST TIME LOCAL OAUTH
-    # ====================================================
-
-    if not creds or not creds.valid:
-
-        # Render should NOT try browser OAuth
-        if os.getenv("RENDER"):
-
-            logger.error(
-                "❌ YouTube OAuth credentials are invalid "
-                "or missing on Render."
-            )
-
-            return None
-
-        if not YOUTUBE_CLIENT_SECRET:
-
-            logger.error(
-                "❌ YOUTUBE_CLIENT_SECRET is missing from .env"
-            )
-
-            return None
-
-        if not os.path.exists(YOUTUBE_CLIENT_SECRET):
-
-            logger.error(
-                f"❌ Client secret file not found: "
-                f"{YOUTUBE_CLIENT_SECRET}"
-            )
-
-            return None
-
-        logger.info(
-            "🔐 Starting YouTube OAuth..."
-        )
-
-        try:
-
-            flow = InstalledAppFlow.from_client_secrets_file(
-                YOUTUBE_CLIENT_SECRET,
-                SCOPES
-            )
-
-            creds = flow.run_local_server(
-                port=0,
-                access_type="offline",
-                prompt="consent"
-            )
-
-            with open(
-                YOUTUBE_TOKEN_FILE,
-                "w"
-            ) as token:
-
-                token.write(
-                    creds.to_json()
-                )
-
-            logger.info(
-                f"✅ YouTube token saved: "
-                f"{YOUTUBE_TOKEN_FILE}"
-            )
-
-        except Exception as e:
-
-            logger.exception(
-                f"❌ YouTube OAuth failed: {e}"
-            )
-
-            return None
-
-    # ====================================================
-    # STEP 5 - BUILD YOUTUBE API SERVICE
-    # ====================================================
-
-    try:
-
-        youtube = build(
-            "youtube",
-            "v3",
-            credentials=creds
-        )
-
-        logger.info(
-            "✅ YouTube API service ready"
-        )
-
-        return youtube
-
-    except Exception as e:
-
-        logger.exception(
-            f"❌ Failed to build YouTube service: {e}"
-        )
-
-        return None
-
-
 def upload_to_youtube(
     video_path,
     title=None,
     description=None,
     tags=None
 ):
-    """Upload an MP4 video to YouTube."""
+    """Upload an MP4 video to YouTube with dynamic metadata."""
 
     try:
 
-        if not title:
-            title = "🏠 Amazing Property Tour | Sarkar Robotics #Shorts"
-
-        if not description:
-            description = (
-                "🏠 Take a quick look at this beautiful property!\n\n"
-                "📍 Property details available on request.\n"
-                "📩 Contact us for more information.\n\n"
-                "🔔 Subscribe to Sarkar Robotics for more property tours, "
-                "real estate updates and property listings.\n\n"
-                "#Shorts #RealEstate #Property #PropertyForSale #SarkarRobotics"
-            )
         # ====================================================
         # STEP 1 - CHECK VIDEO
         # ====================================================
@@ -263,32 +35,112 @@ def upload_to_youtube(
             return False
 
         # ====================================================
-        # STEP 3 - DEFAULT TAGS
+        # STEP 3 - DYNAMIC YOUTUBE METADATA
+        # ====================================================
+
+        if not title or not description:
+
+            # Use the video filename to create a stable variation.
+            filename = os.path.basename(video_path)
+
+            # Remove extension and clean common generated names.
+            video_name = os.path.splitext(filename)[0]
+
+            # Create a small deterministic index so repeated
+            # uploads don't always use the exact same wording.
+            variation_index = (
+                sum(ord(char) for char in video_name)
+                % 8
+            )
+
+            title_variations = [
+
+                "🏠 This Property Is Seriously Worth Seeing! #Shorts",
+
+                "🏡 Would You Live In This Property? #Shorts",
+
+                "✨ A Property Tour You Don't Want To Miss! #Shorts",
+
+                "🔥 One Property, So Many Possibilities! #Shorts",
+
+                "🏠 Take A Look Inside This Amazing Property! #Shorts",
+
+                "💰 Is This Your Next Dream Property? #Shorts",
+
+                "🏡 Another Interesting Property Tour! #Shorts",
+
+                "👀 Wait Until You See This Property! #Shorts"
+            ]
+
+            description_variations = [
+
+                "🏠 Take a quick look at this interesting property.\n\n"
+                "From the location to the overall property appeal, "
+                "there is always something interesting to discover.\n\n"
+                "📩 Want property details? Contact us for more information.\n\n"
+                "🔔 Subscribe to Sarkar Robotics for more AI-powered "
+                "property tours, real estate stories and interesting visuals.\n\n"
+                "#Shorts #RealEstate #Property #PropertyTour #SarkarRobotics",
+
+                "🏡 Discover another interesting real estate property.\n\n"
+                "This short video gives you a quick visual look at the property "
+                "and its potential.\n\n"
+                "📩 Contact us for property details and availability.\n\n"
+                "🔔 Subscribe for more property tours and AI-powered real estate content.\n\n"
+                "#Shorts #RealEstate #Property #RealEstateIndia #SarkarRobotics",
+
+                "✨ What do you think about this property?\n\n"
+                "Watch the full short and explore the space, design and overall feel.\n\n"
+                "📩 For more information about the property, get in touch with us.\n\n"
+                "🔔 Follow Sarkar Robotics for more interesting property videos.\n\n"
+                "#Shorts #Property #RealEstate #PropertyForSale #SarkarRobotics",
+
+                "🔥 Another property worth a quick look!\n\n"
+                "Real estate can look very different from property to property. "
+                "Here is another one to explore.\n\n"
+                "📩 Interested? Contact us for more details.\n\n"
+                "🔔 Subscribe to Sarkar Robotics for more real estate visuals and stories.\n\n"
+                "#Shorts #RealEstate #PropertyTour #LuxuryProperty #SarkarRobotics"
+            ]
+
+            if not title:
+                title = title_variations[variation_index]
+
+            if not description:
+                description = description_variations[
+                    variation_index % len(description_variations)
+                ]
+
+        # ====================================================
+        # STEP 4 - DEFAULT TAGS
         # ====================================================
 
         if tags is None:
+
             tags = [
                 "real estate",
                 "property",
+                "property tour",
                 "property for sale",
+                "real estate india",
+                "house tour",
                 "luxury property",
-                "luxury real estate",
-                "property listing"
+                "real estate property",
+                "property listing",
+                "Sarkar Robotics"
             ]
 
         # ====================================================
-
-        # ====================================================
-        # STEP 4 - VIDEO METADATA
+        # STEP 5 - VIDEO METADATA
         # ====================================================
 
         body = {
 
             "snippet": {
 
-                "title": title,
+                "title": title[:100],
 
-                "description": description,
+                "description": description[:5000],
 
                 "tags": tags,
 
@@ -304,11 +156,15 @@ def upload_to_youtube(
         }
 
         # ====================================================
-        # STEP 5 - UPLOAD
+        # STEP 6 - UPLOAD
         # ====================================================
 
         logger.info(
-            "▶️ YouTube upload started..."
+            f"▶️ YouTube upload started..."
+        )
+
+        logger.info(
+            f"🎯 YouTube title: {title}"
         )
 
         media = MediaFileUpload(
@@ -329,7 +185,7 @@ def upload_to_youtube(
         response = request.execute()
 
         # ====================================================
-        # STEP 6 - RESULT
+        # STEP 7 - RESULT
         # ====================================================
 
         video_id = response.get("id")
