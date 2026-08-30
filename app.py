@@ -562,7 +562,9 @@ def generate_youtube_metadata(image_path):
             ).decode("utf-8")
 
         response = groq_client.chat.completions.create(
+
             model="qwen/qwen3.6-27b",
+
             messages=[
                 {
                     "role": "user",
@@ -570,20 +572,47 @@ def generate_youtube_metadata(image_path):
                         {
                             "type": "text",
                             "text": (
-                                "Analyze this property photo.\n\n"
-                                "Create YouTube metadata for a real-estate Short.\n"
-                                "Return EXACTLY in this format:\n"
-                                "TITLE: [short property-focused title]\n"
-                                "DESCRIPTION: [2-3 sentences describing only visible features]\n\n"
-                                "Rules:\n"
-                                "- Mention only things clearly visible in the image.\n"
-                                "- Never invent price, location, bedrooms or amenities.\n"
-                                "- Keep the title attractive and natural.\n"
-                                "- Do not put Sarkar Robotics in the main title topic.\n"
-                                "- Add '| Sarkar Robotics' at the end of the title.\n"
-                                "- Description must end with:\n"
-                                "Subscribe to Sarkar Robotics for more property inspiration and AI real-estate content.\n"
-                                "- Return ONLY TITLE and DESCRIPTION."
+                                "Look carefully at this property photo.\n\n"
+
+                                "Create YouTube metadata for a real-estate "
+                                "Short.\n\n"
+
+                                "Return EXACTLY these two lines:\n"
+                                "TITLE: ...\n"
+                                "DESCRIPTION: ...\n\n"
+
+                                "TITLE RULES:\n"
+                                "- Create a short, attractive title based "
+                                "only on clearly visible property features.\n"
+                                "- Do not use a generic title like "
+                                "'Modern Property'.\n"
+                                "- Do not invent location, price, bedrooms, "
+                                "bathrooms or amenities.\n"
+                                "- Sarkar Robotics is NOT the builder, owner "
+                                "or seller of the property.\n"
+                                "- Sarkar Robotics only creates the "
+                                "AI-generated property reel.\n"
+                                "- Put '| Sarkar Robotics' at the END of "
+                                "the title.\n\n"
+
+                                "DESCRIPTION RULES:\n"
+                                "- Write 2 or 3 natural sentences.\n"
+                                "- Describe only features clearly visible "
+                                "in the photo.\n"
+                                "- Do not invent price, location, bedrooms, "
+                                "bathrooms, amenities or ownership.\n"
+                                "- Mention that the reel is AI-generated "
+                                "from a property photo.\n"
+                                "- Do not say Sarkar Robotics built, owns, "
+                                "developed or sells the property.\n"
+                                "- End with exactly:\n"
+                                "Subscribe to Sarkar Robotics for more "
+                                "AI-powered property reels and real-estate "
+                                "content.\n\n"
+
+                                "Return ONLY TITLE and DESCRIPTION. "
+                                "Do not include analysis, explanations, "
+                                "markdown or extra text."
                             )
                         },
                         {
@@ -598,8 +627,9 @@ def generate_youtube_metadata(image_path):
                     ]
                 }
             ],
-            max_tokens=220,
-            temperature=0.7
+
+            max_tokens=250,
+            temperature=0.5
         )
 
         result = (
@@ -608,26 +638,78 @@ def generate_youtube_metadata(image_path):
             .strip()
         )
 
-        title = "Modern Property | Sarkar Robotics"
-        description = (
-            "Beautiful property available for sale.\n\n"
-            "Subscribe to Sarkar Robotics for more property "
-            "inspiration and AI real-estate content."
-        )
+        title = None
+        description = None
 
         for line in result.splitlines():
 
-            if line.startswith("TITLE:"):
-                title = line.replace(
-                    "TITLE:", "", 1
-                ).strip()
+            line = line.strip()
 
-            elif line.startswith("DESCRIPTION:"):
-                description = line.replace(
-                    "DESCRIPTION:", "", 1
-                ).strip()
+            if line.upper().startswith("TITLE:"):
 
-        return title, description
+                title = line.split(
+                    ":", 1
+                )[1].strip()
+
+            elif line.upper().startswith("DESCRIPTION:"):
+
+                description = line.split(
+                    ":", 1
+                )[1].strip()
+
+        # ====================================================
+        # TITLE SAFETY
+        # ====================================================
+
+        if not title:
+
+            title = "Beautiful Property Tour"
+
+        # Remove accidental duplicate brand
+        title = title.replace(
+            "| Sarkar Robotics | Sarkar Robotics",
+            "| Sarkar Robotics"
+        )
+
+        if not title.lower().endswith(
+            "| sarkar robotics"
+        ):
+
+            title = (
+                title.rstrip(" |")
+                + " | Sarkar Robotics"
+            )
+
+        # ====================================================
+        # DESCRIPTION SAFETY
+        # ====================================================
+
+        if not description:
+
+            description = (
+                "Take a quick look at this property and "
+                "its visible design features.\n\n"
+                "This AI-generated reel was created from "
+                "a property photo.\n\n"
+                "Subscribe to Sarkar Robotics for more "
+                "AI-powered property reels and "
+                "real-estate content."
+            )
+
+        elif "Subscribe to Sarkar Robotics" not in description:
+
+            description = (
+                description.rstrip()
+                + "\n\n"
+                "Subscribe to Sarkar Robotics for more "
+                "AI-powered property reels and "
+                "real-estate content."
+            )
+
+        return (
+            title[:100],
+            description[:5000]
+        )
 
     except Exception as e:
 
@@ -636,10 +718,15 @@ def generate_youtube_metadata(image_path):
         )
 
         return (
-            "Modern Property | Sarkar Robotics",
-            "Beautiful property available for sale.\n\n"
-            "Subscribe to Sarkar Robotics for more property "
-            "inspiration and AI real-estate content."
+            "Beautiful Property Tour | Sarkar Robotics",
+
+            "Take a quick look at this property and "
+            "its visible design features.\n\n"
+            "This AI-generated reel was created from "
+            "a property photo.\n\n"
+            "Subscribe to Sarkar Robotics for more "
+            "AI-powered property reels and "
+            "real-estate content."
         )
 
 # ============================================================
