@@ -1,3 +1,25 @@
+import os
+import json
+import logging
+
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+
+from config import (
+    YOUTUBE_CLIENT_SECRET,
+    YOUTUBE_TOKEN_JSON,
+    YOUTUBE_TOKEN_FILE
+)
+
+logger = logging.getLogger("ReelsBoost")
+
+SCOPES = [
+    "https://www.googleapis.com/auth/youtube.upload"
+]
+
 def upload_to_youtube(
     video_path,
     title=None,
