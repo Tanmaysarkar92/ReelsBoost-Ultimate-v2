@@ -101,28 +101,10 @@ def generate_video(image_path, voice_path=None):
         # This avoids FFmpeg parsing problems.
 
         outro_filter = (
-            "color=c=black:s=1080x1920:r=24,"
-            "drawtext="
-            "text='AI REEL BY SARKAR AI QUANTUM':"
-            "fontcolor=white:"
-            "fontsize=58:"
-            "x=(w-text_w)/2:"
-            "y=850,"
-            "drawtext="
-            "text='CONTACT - +91 XXXXX XXXXX':"
-            "fontcolor=white:"
-            "fontsize=42:"
-            "x=(w-text_w)/2:"
-            "y=960,"
-            "drawtext="
-            "text='DM FOR DETAILS':"
-            "fontcolor=white:"
-            "fontsize=40:"
-            "x=(w-text_w)/2:"
-            "y=1040,"
-            "trim=duration=2.5,"
-            "setpts=PTS-STARTPTS[outro]"
-        )
+    "color=c=black:s=1080x1920:r=24,"
+    "trim=duration=2.5,"
+    "setpts=PTS-STARTPTS[outro]"
+)
 
         # ==================================================
         # MAIN VIDEO DURATION
