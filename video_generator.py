@@ -7,6 +7,19 @@ import imageio_ffmpeg
 logger = logging.getLogger("ReelsBoost")
 
 
+# ============================================================
+# SETTINGS
+# ============================================================
+
+VIDEO_DURATION = 10.5
+OUTRO_DURATION = 2.5
+
+CONTACT_PHONE = os.getenv(
+    "CONTACT_PHONE",
+    "+91 XXXXX XXXXX"
+)
+
+
 def generate_video(image_path, voice_path=None):
 
     try:
@@ -64,36 +77,76 @@ def generate_video(image_path, voice_path=None):
         )
 
         # ==================================================
-        # ANIMATED IMAGE FILTER
-        # ==================================================
-        #
-        # Slow zoom + horizontal movement.
-        #
-        # The image starts slightly zoomed out
-        # and gradually zooms in.
-        #
-        # This makes the Reel look like a real video
-        # instead of a static photograph.
-        #
+        # MAIN PROPERTY ANIMATION
         # ==================================================
 
-        video_filter = (
-    "scale=1600:2844:force_original_aspect_ratio=increase,"
-    "zoompan="
-    "z='min(1.0+0.28*on/48,1.28)':"
-    "x='(iw-iw/zoom)/2+90*sin(on/45)':"
-    "y='(ih-ih/zoom)/2+60*cos(on/50)':"
-    "d=1:"
-    "s=1080x1920:"
-    "fps=24,"
-    "setsar=1"
-)
+        main_filter = (
+            "scale=1600:2844:"
+            "force_original_aspect_ratio=increase,"
+            "zoompan="
+            "z='min(1.0+0.28*on/48,1.28)':"
+            "x='(iw-iw/zoom)/2+90*sin(on/45)':"
+            "y='(ih-ih/zoom)/2+60*cos(on/50)':"
+            "d=1:"
+            "s=1080x1920:"
+            "fps=24,"
+            "setsar=1"
+        )
 
-        # ==========================
-        # Video + Voice
-        # ==========================
+        # ==================================================
+        # OUTRO
+        # ==================================================
+
+        # Use simple text without special filter expressions.
+        # This avoids FFmpeg parsing problems.
+
+        outro_filter = (
+            "color=c=black:s=1080x1920:r=24,"
+            "drawtext="
+            "text='AI REEL BY SARKAR AI QUANTUM':"
+            "fontcolor=white:"
+            "fontsize=58:"
+            "x=(w-text_w)/2:"
+            "y=850,"
+            "drawtext="
+            "text='CONTACT - +91 XXXXX XXXXX':"
+            "fontcolor=white:"
+            "fontsize=42:"
+            "x=(w-text_w)/2:"
+            "y=960,"
+            "drawtext="
+            "text='DM FOR DETAILS':"
+            "fontcolor=white:"
+            "fontsize=40:"
+            "x=(w-text_w)/2:"
+            "y=1040,"
+            "trim=duration=2.5,"
+            "setpts=PTS-STARTPTS[outro]"
+        )
+
+        # ==================================================
+        # MAIN VIDEO DURATION
+        # ==================================================
+
+        main_duration = VIDEO_DURATION - OUTRO_DURATION
+
+        # ==================================================
+        # VIDEO + VOICE
+        # ==================================================
 
         if voice_path:
+
+            filter_complex = (
+                f"[0:v]{main_filter},"
+                f"trim=duration={main_duration},"
+                "setpts=PTS-STARTPTS[main];"
+
+                f"{outro_filter};"
+
+                "[main][outro]"
+                "concat=n=2:v=1:a=0,"
+                "format=yuv420p[v]"
+            )
 
             command = [
 
@@ -101,7 +154,7 @@ def generate_video(image_path, voice_path=None):
 
                 "-y",
 
-                # Image
+                # Property image
                 "-loop",
                 "1",
 
@@ -112,15 +165,22 @@ def generate_video(image_path, voice_path=None):
                 "-i",
                 voice_path,
 
-                # Duration
-                "-t",
-                "8",
-
-                # Animation
-                "-vf",
-                video_filter,
+                # Filters
+                "-filter_complex",
+                filter_complex,
 
                 # Video
+                "-map",
+                "[v]",
+
+                # Audio
+                "-map",
+                "1:a",
+
+                # Final duration
+                "-t",
+                str(VIDEO_DURATION),
+
                 "-r",
                 "24",
 
@@ -143,7 +203,8 @@ def generate_video(image_path, voice_path=None):
                 "-b:a",
                 "128k",
 
-                "-shortest",
+                # Do NOT use -shortest.
+                # Outro must remain visible.
 
                 "-movflags",
                 "+faststart",
@@ -151,11 +212,23 @@ def generate_video(image_path, voice_path=None):
                 output_path
             ]
 
-        # ==========================
-        # Video without Voice
-        # ==========================
+        # ==================================================
+        # VIDEO WITHOUT VOICE
+        # ==================================================
 
         else:
+
+            filter_complex = (
+                f"[0:v]{main_filter},"
+                f"trim=duration={main_duration},"
+                "setpts=PTS-STARTPTS[main];"
+
+                f"{outro_filter};"
+
+                "[main][outro]"
+                "concat=n=2:v=1:a=0,"
+                "format=yuv420p[v]"
+            )
 
             command = [
 
@@ -169,11 +242,14 @@ def generate_video(image_path, voice_path=None):
                 "-i",
                 image_path,
 
-                "-t",
-                "8",
+                "-filter_complex",
+                filter_complex,
 
-                "-vf",
-                video_filter,
+                "-map",
+                "[v]",
+
+                "-t",
+                str(VIDEO_DURATION),
 
                 "-r",
                 "24",
@@ -201,17 +277,13 @@ def generate_video(image_path, voice_path=None):
         # ==========================
 
         logger.info(
-            "🎥 Starting animated FFmpeg rendering..."
+            "🎥 Starting 10.5 second video rendering..."
         )
 
         result = subprocess.run(
-
             command,
-
             stdout=subprocess.PIPE,
-
             stderr=subprocess.PIPE,
-
             text=True
         )
 
@@ -226,7 +298,7 @@ def generate_video(image_path, voice_path=None):
             )
 
             logger.error(
-                result.stderr[-3000:]
+                result.stderr[-5000:]
             )
 
             return None
@@ -248,7 +320,7 @@ def generate_video(image_path, voice_path=None):
         )
 
         logger.info(
-            f"✅ Animated video generated successfully: "
+            f"✅ 10.5 second video generated successfully: "
             f"{output_path} ({size} bytes)"
         )
 
