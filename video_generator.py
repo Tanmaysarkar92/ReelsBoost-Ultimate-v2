@@ -11,8 +11,7 @@ logger = logging.getLogger("ReelsBoost")
 # SETTINGS
 # ============================================================
 
-VIDEO_DURATION = 10.5
-OUTRO_DURATION = 2.5
+VIDEO_DURATION = 18.0
 
 CONTACT_PHONE = os.getenv(
     "CONTACT_PHONE",
@@ -94,23 +93,10 @@ def generate_video(image_path, voice_path=None):
         )
 
         # ==================================================
-        # OUTRO
+        # FULL 18-SECOND VIDEO
         # ==================================================
-
-        # Use simple text without special filter expressions.
-        # This avoids FFmpeg parsing problems.
-
-        outro_filter = (
-    "color=c=black:s=1080x1920:r=24,"
-    "trim=duration=2.5,"
-    "setpts=PTS-STARTPTS[outro]"
-)
-
-        # ==================================================
-        # MAIN VIDEO DURATION
-        # ==================================================
-
-        main_duration = VIDEO_DURATION - OUTRO_DURATION
+        # The property animation fills the complete reel.
+        # No black outro is used.
 
         # ==================================================
         # VIDEO + VOICE
@@ -120,13 +106,8 @@ def generate_video(image_path, voice_path=None):
 
             filter_complex = (
                 f"[0:v]{main_filter},"
-                f"trim=duration={main_duration},"
-                "setpts=PTS-STARTPTS[main];"
-
-                f"{outro_filter};"
-
-                "[main][outro]"
-                "concat=n=2:v=1:a=0,"
+                f"trim=duration={VIDEO_DURATION},"
+                "setpts=PTS-STARTPTS,"
                 "format=yuv420p[v]"
             )
 
@@ -178,7 +159,10 @@ def generate_video(image_path, voice_path=None):
                 "-pix_fmt",
                 "yuv420p",
 
-                # Audio
+                # Audio: keep the track aligned to the 18-second reel.
+                "-af",
+                f"apad=whole_dur={VIDEO_DURATION}",
+
                 "-c:a",
                 "aac",
 
@@ -202,13 +186,8 @@ def generate_video(image_path, voice_path=None):
 
             filter_complex = (
                 f"[0:v]{main_filter},"
-                f"trim=duration={main_duration},"
-                "setpts=PTS-STARTPTS[main];"
-
-                f"{outro_filter};"
-
-                "[main][outro]"
-                "concat=n=2:v=1:a=0,"
+                f"trim=duration={VIDEO_DURATION},"
+                "setpts=PTS-STARTPTS,"
                 "format=yuv420p[v]"
             )
 
@@ -259,7 +238,7 @@ def generate_video(image_path, voice_path=None):
         # ==========================
 
         logger.info(
-            "🎥 Starting 10.5 second video rendering..."
+            "🎥 Starting 18 second video rendering..."
         )
 
         result = subprocess.run(
@@ -302,7 +281,7 @@ def generate_video(image_path, voice_path=None):
         )
 
         logger.info(
-            f"✅ 10.5 second video generated successfully: "
+            f"✅ 18 second video generated successfully: "
             f"{output_path} ({size} bytes)"
         )
 

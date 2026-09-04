@@ -406,21 +406,28 @@ def generate_ai_caption(image_path):
 
             messages=[
                 {
+                    "role": "system",
+                    "content": (
+                        "You are a professional luxury real-estate narrator. "
+                        "Write ONLY the spoken voiceover script for an 18-second Reel. "
+                        "Never reveal reasoning, analysis, instructions, headings, "
+                        "labels, or phrases such as 'I cannot invent facts'. "
+                        "Start directly with an energetic hook and use only details "
+                        "clearly visible in the image."
+                    )
+                },
+                {
                     "role": "user",
                     "content": [
                         {
                             "type": "text",
                             "text": (
-                                "Analyze this property photo and create "
-                                "one short natural real-estate narration "
-                                "for an 8-second video. "
-                                "Mention only details visible in the image. "
-                                "Do not invent price, location, bedrooms, "
-                                "amenities, or other facts. "
-                                "Return ONLY the final narration. "
-                                "Do not include thinking, analysis, "
-                                "explanations, bullet points, or "
-                                "<think> tags."
+                                "Analyze this property photo and create one natural, "
+                                "engaging real-estate narration for an 18-second video, "
+                                "approximately 35-45 words. Mention only visible details. "
+                                "Do not invent price, location, bedrooms, bathrooms, "
+                                "amenities, ownership, or other facts. "
+                                "Return ONLY the spoken narration."
                             )
                         },
                         {
@@ -436,8 +443,9 @@ def generate_ai_caption(image_path):
                 }
             ],
 
-            max_tokens=80,
-            temperature=0.7
+            max_tokens=120,
+            temperature=0.7,
+            reasoning_effort="none"
         )
 
         caption = (
@@ -960,9 +968,9 @@ def process_image_message(
                 "🏠 Luxury Property Available!\n\n"
                 "Beautiful real estate property available for sale.\n"
                 "Contact us for more details.\n\n"
-                "📌 Subscribe to Sarkar Robotics for more property videos, "
+                "📌 Subscribe to Sarkar AI Quantum for more property videos, "
                 "real estate updates, and luxury property listings.\n\n"
-                "#RealEstate #PropertyForSale #LuxuryProperty #SarkarRobotics"
+                "#RealEstate #PropertyForSale #LuxuryProperty #SarkarAIQuantum"
             )
 
             # =================================================
