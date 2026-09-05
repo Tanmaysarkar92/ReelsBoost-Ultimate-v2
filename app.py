@@ -623,6 +623,10 @@ def generate_youtube_metadata(image_path):
                                 "- Make the title interesting and curiosity-driven.\n"
                                 "- Avoid repetitive generic titles.\n"
                                 "- Use clearly visible information from the image.\n"
+                                "- Never use generic titles such as 'Interesting Visual Story' or 'Visual Story'.\n"
+                                "- If the image is clearly a property, the title MUST identify it as property, real estate, home, house, villa, apartment, or luxury home.\n"
+                                "- Use a concrete visible hook such as modern design, exterior, interior, balcony, pool, architecture, or luxury feel when visible.\n"
+                                "- Never invent price, location, bedrooms, bathrooms, amenities, or other facts.\n"
                                 "- Keep the title concise.\n"
                                 "- Do not use clickbait that makes unsupported claims.\n"
                                 "- Do not always start with the same words.\n"
@@ -700,8 +704,17 @@ def generate_youtube_metadata(image_path):
         # ====================================================
 
         if not title:
+            title = "Property Tour"
 
-            title = "Interesting Visual Story"
+        # Block old/generic AI output so it can never become the published title.
+        generic_titles = {
+            "interesting visual story",
+            "visual story",
+            "interesting visual story | sarkar ai quantum",
+            "visual story | sarkar ai quantum"
+        }
+        if title.strip().lower() in generic_titles:
+            title = "Property Tour"
 
         # Remove old branding
 
@@ -797,14 +810,14 @@ def generate_youtube_metadata(image_path):
         )
 
         return (
-            "Interesting Visual Story | Sarkar AI Quantum",
+            "Property Tour | Sarkar AI Quantum",
             (
-                "Explore this AI-powered visual story from "
-                "Sarkar AI Quantum.\n\n"
-                "We create interesting content around AI, "
-                "robotics, real estate and futuristic technology.\n\n"
-                "Subscribe for more.\n\n"
-                "#SarkarAIQuantum #AI #Robotics #RealEstate #Shorts"
+                "Take a closer look at this property visual created from "
+                "a property photo.\n\n"
+                "Sarkar AI Quantum creates AI-powered real estate and "
+                "interesting visual content.\n\n"
+                "Subscribe for more property reels and visual stories.\n\n"
+                "#SarkarAIQuantum #RealEstate #Property #LuxuryHome #Shorts"
             )
         )
 
