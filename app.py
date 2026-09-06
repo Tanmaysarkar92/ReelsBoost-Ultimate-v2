@@ -56,6 +56,17 @@ def init_database():
             )
         """)
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS pending_property_requests (
+                whatsapp_number TEXT PRIMARY KEY,
+                image_id TEXT NOT NULL,
+                image_message_id TEXT,
+                property_details TEXT DEFAULT '',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         conn.commit()
 
 
@@ -560,7 +571,7 @@ def generate_ai_caption(image_path):
             "Contact us for more details."
         )
 
-def generate_youtube_metadata(image_path):
+def generate_youtube_metadata(image_path, property_details=""):
 
     try:
 
@@ -583,6 +594,10 @@ def generate_youtube_metadata(image_path):
                                 "Analyze this image carefully.\n\n"
 
                                 "Create engaging YouTube metadata for Sarkar AI Quantum.\n\n"
+
+                                "PROPERTY DETAILS PROVIDED BY THE USER:\n"
+                                f"{property_details.strip() if property_details else '(No extra property details provided)'}\n\n"
+                                "Use these user-provided details when present. They are trusted listing details supplied by the user, not facts to invent.\n\n"
 
                                 "The channel covers:\n"
                                 "- AI\n"
@@ -627,6 +642,7 @@ def generate_youtube_metadata(image_path):
                                 "- If the image is clearly a property, the title MUST identify it as property, real estate, home, house, villa, apartment, or luxury home.\n"
                                 "- Use a concrete visible hook such as modern design, exterior, interior, balcony, pool, architecture, or luxury feel when visible.\n"
                                 "- Never invent price, location, bedrooms, bathrooms, amenities, or other facts.\n"
+                                "- If user-provided property details include price, location, BHK, area, or a notable feature, use accurate details selectively in the title when they make the title more useful.\n"
                                 "- Keep the title concise.\n"
                                 "- Do not use clickbait that makes unsupported claims.\n"
                                 "- Do not always start with the same words.\n"
@@ -641,9 +657,10 @@ def generate_youtube_metadata(image_path):
                                 "- Mention AI-generated visuals when appropriate.\n"
                                 "- For property content, clearly state that the reel "
                                 "was created from a property photo.\n"
-                                "- Never invent property facts.\n"
+                                "- Include relevant user-provided property details naturally when available.\n"
+                                "- Never invent property facts beyond the supplied details or visible image.\n"
                                 "- Do not make unsupported ownership or seller claims.\n"
-                                "- Naturally encourage viewers to subscribe.\n"
+                                "- End the description with this exact CTA line: 🔔 Subscribe to Sarkar AI Quantum for AI, Robotics, AI Stories and more.\n"
                                 "- Mention Sarkar AI Quantum naturally.\n"
                                 "- Include relevant hashtags at the end.\n\n"
 
@@ -683,21 +700,27 @@ def generate_youtube_metadata(image_path):
         title = None
         description = None
 
-        for line in result.splitlines():
+        # Parse the requested fields while tolerating a multi-line description.
+        lines = result.splitlines()
+        description_lines = []
+        in_description = False
 
-            line = line.strip()
+        for raw_line in lines:
+            line = raw_line.strip()
 
             if line.upper().startswith("TITLE:"):
-
-                title = line.split(
-                    ":", 1
-                )[1].strip()
+                title = line.split(":", 1)[1].strip()
+                in_description = False
 
             elif line.upper().startswith("DESCRIPTION:"):
+                description_lines.append(line.split(":", 1)[1].strip())
+                in_description = True
 
-                description = line.split(
-                    ":", 1
-                )[1].strip()
+            elif in_description and line:
+                description_lines.append(line)
+
+        if description_lines:
+            description = "\n".join(description_lines).strip()
 
         # ====================================================
         # TITLE SAFETY
@@ -715,6 +738,51 @@ def generate_youtube_metadata(image_path):
         }
         if title.strip().lower() in generic_titles:
             title = "Property Tour"
+
+        # When the user supplied property details, prefer a concrete title
+        # built from those details over a vague AI-generated title.
+        if property_details.strip():
+            import re
+
+            def detail_value(label):
+                match = re.search(
+                    rf"(?:^|\n)\s*{re.escape(label)}\s*:\s*(.+)",
+                    property_details,
+                    flags=re.IGNORECASE
+                )
+                return match.group(1).strip() if match else ""
+
+            detail_price = detail_value("Price")
+            detail_location = detail_value("Location")
+            detail_bhk = detail_value("BHK")
+            detail_type = detail_value("Property Type") or detail_value("Type")
+
+            title_is_vague = (
+                len(title.strip()) < 18
+                or title.strip().lower() in {
+                    "beautiful property",
+                    "luxury property",
+                    "beautiful home",
+                    "property tour",
+                    "home tour"
+                }
+            )
+
+            if title_is_vague and (detail_bhk or detail_location or detail_price):
+                title_parts = []
+                if detail_bhk:
+                    title_parts.append(detail_bhk)
+                if detail_type:
+                    title_parts.append(detail_type)
+                elif detail_bhk:
+                    title_parts.append("Property")
+                else:
+                    title_parts.append("Property")
+                if detail_location:
+                    title_parts.append(f"in {detail_location}")
+                if detail_price:
+                    title_parts.append(f"| {detail_price}")
+                title = " ".join(title_parts)
 
         # Remove old branding
 
@@ -752,7 +820,7 @@ def generate_youtube_metadata(image_path):
                 "created with AI.\n\n"
                 "Sarkar AI Quantum explores AI, robotics, real estate "
                 "and interesting visual stories.\n\n"
-                "Subscribe for more."
+                "🔔 Subscribe to Sarkar AI Quantum for AI, Robotics, AI Stories and more."
             )
 
         # Remove old branding
@@ -789,6 +857,11 @@ def generate_youtube_metadata(image_path):
 
             description += hashtag_block
 
+        # Keep the requested subscription CTA as the final line.
+        cta = "🔔 Subscribe to Sarkar AI Quantum for AI, Robotics, AI Stories and more."
+        description = description.replace(cta, "").rstrip()
+        description += "\n\n" + cta
+
         # YouTube description limit
 
         description = description[:5000]
@@ -816,7 +889,7 @@ def generate_youtube_metadata(image_path):
                 "a property photo.\n\n"
                 "Sarkar AI Quantum creates AI-powered real estate and "
                 "interesting visual content.\n\n"
-                "Subscribe for more property reels and visual stories.\n\n"
+                "🔔 Subscribe to Sarkar AI Quantum for AI, Robotics, AI Stories and more.\n\n"
                 "#SarkarAIQuantum #RealEstate #Property #LuxuryHome #Shorts"
             )
         )
@@ -828,7 +901,8 @@ def generate_youtube_metadata(image_path):
 def process_image_message(
     phone_number,
     image_id,
-    message_id
+    message_id,
+    property_details=""
 ):
 
     image_path = None
@@ -856,6 +930,11 @@ def process_image_message(
         logger.info(
             f"📱 Phone: {phone_number}"
         )
+
+        if property_details:
+            logger.info(
+                f"📝 Property details received: {property_details}"
+            )
 
         logger.info(
             "=================================================="
@@ -977,14 +1056,9 @@ def process_image_message(
             from facebook import upload_to_facebook
             from youtube import upload_to_youtube
 
-            caption = (
-                "🏠 Luxury Property Available!\n\n"
-                "Beautiful real estate property available for sale.\n"
-                "Contact us for more details.\n\n"
-                "📌 Subscribe to Sarkar AI Quantum for more property videos, "
-                "real estate updates, and luxury property listings.\n\n"
-                "#RealEstate #PropertyForSale #LuxuryProperty #SarkarAIQuantum"
-            )
+            # Reuse the AI-generated YouTube description for Facebook so
+            # user-supplied property details and the new CTA stay consistent.
+            caption = youtube_description
 
             # =================================================
             # FACEBOOK
@@ -1052,7 +1126,7 @@ def process_image_message(
                     "🎬 তন্ময় ভাই, আপনার Luxury Property Reel Ready! ❤️\n\n"
                     "✅ Facebook Page-এ পোস্ট হয়েছে\n"
                     "✅ YouTube-এ পোস্ট হয়েছে\n\n"
-                    "🚀 Sarkar Robotics AI Reel Engine সফলভাবে কাজ করছে!"
+                    "🚀 Sarkar AI Quantum Reel Engine সফলভাবে কাজ করছে!"
                 )
 
             elif facebook_result:
@@ -1368,11 +1442,67 @@ def receive_message():
                 ).get(
                     "body",
                     ""
-                )
+                ).strip()
 
                 logger.info(
                     f"📩 Text: {text}"
                 )
+
+                # A property photo is stored first. The next text message
+                # becomes the property details for that photo.
+                pending = None
+                with sqlite3.connect(DATABASE_FILE) as conn:
+                    row = conn.execute("""
+                        SELECT image_id, image_message_id
+                        FROM pending_property_requests
+                        WHERE whatsapp_number = ?
+                    """, (sender,)).fetchone()
+
+                    if row:
+                        pending = {
+                            "image_id": row[0],
+                            "image_message_id": row[1]
+                        }
+                        conn.execute("""
+                            UPDATE pending_property_requests
+                            SET property_details = ?,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE whatsapp_number = ?
+                        """, (text, sender))
+                        conn.commit()
+
+                if pending:
+                    logger.info(
+                        f"🚀 Property details linked to pending image: {pending['image_id']}"
+                    )
+
+                    # Remove the pending item before starting the job so a
+                    # repeated webhook cannot start the same request twice.
+                    with sqlite3.connect(DATABASE_FILE) as conn:
+                        conn.execute("""
+                            DELETE FROM pending_property_requests
+                            WHERE whatsapp_number = ?
+                        """, (sender,))
+                        conn.commit()
+
+                    executor.submit(
+                        process_image_message,
+                        sender,
+                        pending["image_id"],
+                        pending["image_message_id"] or message_id,
+                        text
+                    )
+
+                    send_text_message(
+                        sender,
+                        "✅ Details received! এখন আপনার property photo + details দিয়ে Reel তৈরি হচ্ছে. 🎬\n\n"
+                        "Price, location, BHK, area ও features ব্যবহার করে YouTube title/description তৈরি করা হবে. ❤️"
+                    )
+                else:
+                    send_text_message(
+                        sender,
+                        "📋 আগে একটি property photo পাঠান, তারপর Price, Location, BHK, Area ও Features লিখে পাঠান."
+                    )
 
             # =================================================
             # IMAGE MESSAGE
@@ -1388,6 +1518,11 @@ def receive_message():
                 image_id = image_data.get(
                     "id"
                 )
+
+                image_caption = image_data.get(
+                    "caption",
+                    ""
+                ).strip()
 
                 logger.info(
                     f"📷 Image ID: {image_id}"
@@ -1408,26 +1543,63 @@ def receive_message():
                         "status": "image_id_missing"
                     }), 200
 
-                # =============================================
-                # IMPORTANT
-                # =============================================
-                # DO NOT download image here
-                # DO NOT generate voice here
-                # DO NOT generate video here
-                #
-                # Start background job instead.
-                # =============================================
-
-                executor.submit(
-                    process_image_message,
-                    sender,
-                    image_id,
-                    message_id
-                )
+                # Store the photo first. The next text message will be
+                # attached to this image as property details.
+                with sqlite3.connect(DATABASE_FILE) as conn:
+                    conn.execute("""
+                        INSERT INTO pending_property_requests
+                        (whatsapp_number, image_id, image_message_id, property_details)
+                        VALUES (?, ?, ?, ?)
+                        ON CONFLICT(whatsapp_number)
+                        DO UPDATE SET
+                            image_id = excluded.image_id,
+                            image_message_id = excluded.image_message_id,
+                            property_details = excluded.property_details,
+                            updated_at = CURRENT_TIMESTAMP
+                    """, (
+                        sender,
+                        image_id,
+                        message_id,
+                        image_caption
+                    ))
+                    conn.commit()
 
                 logger.info(
-                    "⚡ Background processing submitted"
+                    f"💾 Pending property request saved for {sender}"
                 )
+
+                if image_caption:
+                    # WhatsApp image captions can carry the details in the
+                    # same message, so process immediately in that case.
+                    with sqlite3.connect(DATABASE_FILE) as conn:
+                        conn.execute("""
+                            DELETE FROM pending_property_requests
+                            WHERE whatsapp_number = ?
+                        """, (sender,))
+                        conn.commit()
+
+                    executor.submit(
+                        process_image_message,
+                        sender,
+                        image_id,
+                        message_id,
+                        image_caption
+                    )
+
+                    logger.info(
+                        "⚡ Image caption contains details; background processing submitted"
+                    )
+                else:
+                    send_text_message(
+                        sender,
+                        "📷 Photo received! ❤️\n\n"
+                        "এখন property details পাঠান, যেমন:\n"
+                        "Price: ₹85 Lakh\n"
+                        "Location: Kolkata\n"
+                        "BHK: 3BHK\n"
+                        "Area: 1450 sq ft\n"
+                        "Features: Balcony, modular kitchen, parking"
+                    )
 
             # =================================================
             # OTHER MESSAGE TYPE
