@@ -1,4 +1,7 @@
 import os
+import re
+import hmac
+import hashlib
 import logging
 import requests
 import sqlite3
@@ -89,6 +92,112 @@ def payment_page():
         "payment.html",
         razorpay_key_id=RAZORPAY_KEY_ID
     )
+@app.route("/payment", methods=["GET"])
+def payment_page():
+    return render_template(
+        "payment.html",
+        razorpay_key_id=RAZORPAY_KEY_ID
+    )
+
+
+def normalize_phone(phone):
+    phone = re.sub(r"\D", "", str(phone or ""))
+    if phone.startswith("00"):
+        phone = phone[2:]
+    return phone
+
+
+def activate_subscription(phone, subscription_id, plan):
+    phone = normalize_phone(phone)
+    if not phone or not subscription_id:
+        return False
+    with sqlite3.connect(DATABASE_FILE) as conn:
+        conn.execute("""
+            INSERT INTO subscribers (whatsapp_number, subscription_id, plan, status)
+            VALUES (?, ?, ?, 'active')
+            ON CONFLICT(whatsapp_number) DO UPDATE SET
+                subscription_id = excluded.subscription_id,
+                plan = excluded.plan,
+                status = 'active',
+                updated_at = CURRENT_TIMESTAMP
+        """, (phone, subscription_id, plan))
+        conn.commit()
+    return True
+
+
+def subscription_is_active(phone):
+    phone = normalize_phone(phone)
+    if not phone:
+        return False
+    with sqlite3.connect(DATABASE_FILE) as conn:
+        row = conn.execute(
+            "SELECT status FROM subscribers WHERE whatsapp_number = ?",
+            (phone,)
+        ).fetchone()
+    return bool(row and row[0] == "active")
+
+
+@app.route("/verify-subscription", methods=["POST"])
+def verify_subscription():
+    try:
+        data = request.get_json(silent=True) or {}
+        payment_id = data.get("razorpay_payment_id", "")
+        subscription_id = data.get("razorpay_subscription_id", "")
+        signature = data.get("razorpay_signature", "")
+        phone = normalize_phone(data.get("phone", ""))
+        plan = data.get("plan", "")
+
+        if not all([payment_id, subscription_id, signature, phone]):
+            return jsonify({"success": False, "error": "Missing payment verification data"}), 400
+
+        message = f"{payment_id}|{subscription_id}".encode("utf-8")
+        expected = hmac.new(
+            RAZORPAY_KEY_SECRET.encode("utf-8"),
+            message,
+            hashlib.sha256
+        ).hexdigest()
+
+        if not hmac.compare_digest(expected, signature):
+            logger.warning("Razorpay subscription signature verification failed")
+            return jsonify({"success": False, "error": "Payment verification failed"}), 400
+
+        subscription = razorpay_client.subscription.fetch(subscription_id)
+        actual_status = subscription.get("status")
+        actual_plan_id = subscription.get("plan_id")
+        resolved_plan = plan
+        for name, plan_id in RAZORPAY_PLANS.items():
+            if actual_plan_id == plan_id:
+                resolved_plan = name
+                break
+
+        # Checkout authentication is verified here; access is granted immediately
+        # for authenticated/active subscriptions. Webhook remains the authoritative
+        # state-sync path for later renewals, halts, cancellations and completion.
+        if actual_status in ("authenticated", "active"):
+            activate_subscription(phone, subscription_id, resolved_plan)
+            return jsonify({
+                "success": True,
+                "status": actual_status,
+                "active": True
+            }), 200
+
+        return jsonify({
+            "success": True,
+            "status": actual_status,
+            "active": False
+        }), 200
+
+    except Exception:
+        logger.exception("Razorpay subscription verification failed")
+        return jsonify({"success": False, "error": "Unable to verify payment"}), 500
+
+
+@app.route("/subscription-status", methods=["GET"])
+def subscription_status():
+    phone = normalize_phone(request.args.get("phone", ""))
+    if not phone:
+        return jsonify({"success": False, "active": False}), 400
+    return jsonify({"success": True, "active": subscription_is_active(phone)}), 200
 
 # ============================================================
 # LOGGING
@@ -113,7 +222,7 @@ def create_subscription():
         plan = data.get("plan")
         customer_name = data.get("name", "")
         customer_email = data.get("email", "")
-        customer_phone = data.get("phone", "")
+        customer_phone = normalize_phone(data.get("phone", ""))
 
         if plan not in RAZORPAY_PLANS:
             return jsonify({
@@ -199,7 +308,7 @@ def razorpay_webhook():
 
         notes = subscription.get("notes") or {}
 
-        whatsapp_number = notes.get("customer_phone")
+        whatsapp_number = normalize_phone(notes.get("customer_phone"))
         plan = notes.get("plan")
 
         if event == "subscription.activated":
@@ -838,6 +947,19 @@ def generate_youtube_metadata(image_path, property_details=""):
         )
 
         # ====================================================
+        # PROPERTY DETAILS BLOCK
+        # ====================================================
+        # Keep user-supplied listing details visible on BOTH YouTube
+        # and Facebook. Facebook reuses youtube_description below.
+        if property_details.strip():
+            details_block = (
+                "\n\nProperty Details:\n"
+                + property_details.strip()
+            )
+            if "Property Details:" not in description:
+                description += details_block
+
+        # ====================================================
         # HASHTAGS
         # ====================================================
 
@@ -978,8 +1100,9 @@ def process_image_message(
         )
 
         youtube_title, youtube_description = generate_youtube_metadata(
-    image_path
-       )
+            image_path,
+            property_details
+        )
 
         # ====================================================
         # STEP 3 - GENERATE VOICE
@@ -1399,6 +1522,18 @@ def receive_message():
             sender = msg.get(
                 "from"
             )
+
+            # Payment gate: only active subscribers may use the WhatsApp bot.
+            # Razorpay webhook/verification activates the subscriber record.
+            sender = normalize_phone(sender)
+            if not subscription_is_active(sender):
+                send_text_message(
+                    sender,
+                    "🔒 আপনার subscription active নেই।\n\n"
+                    "আগে /payment খুলে Starter / Pro / Business plan-এর একটি subscription complete করুন।\n"
+                    "Payment successful হলে আবার property photo পাঠান। ❤️"
+                )
+                return jsonify({"status": "payment_required"}), 200
 
             # =================================================
             # DUPLICATE MESSAGE CHECK
