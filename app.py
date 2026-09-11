@@ -92,12 +92,6 @@ def payment_page():
         "payment.html",
         razorpay_key_id=RAZORPAY_KEY_ID
     )
-@app.route("/payment", methods=["GET"])
-def payment_page():
-    return render_template(
-        "payment.html",
-        razorpay_key_id=RAZORPAY_KEY_ID
-    )
 
 
 def normalize_phone(phone):
