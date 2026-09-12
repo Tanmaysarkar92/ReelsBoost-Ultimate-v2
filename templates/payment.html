@@ -378,11 +378,33 @@ async function createSubscription() {
                 color: "#111827"
             },
 
-            handler: function(response) {
+            handler: async function(response) {
 
                 message.innerText =
-                    "Payment initiated successfully. Your subscription is being activated.";
+                    "Payment received. Verifying and activating your subscription...";
 
+                try {
+                    const verifyResponse = await fetch("/verify-subscription", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_subscription_id: response.razorpay_subscription_id || data.subscription_id,
+                            razorpay_signature: response.razorpay_signature,
+                            phone: phone,
+                            plan: selectedPlan
+                        })
+                    });
+                    const verifyData = await verifyResponse.json();
+                    if (verifyResponse.ok && verifyData.success && verifyData.active) {
+                        message.innerText = "Payment verified! Your subscription is active. You can now send property photos on WhatsApp.";
+                    } else {
+                        message.innerText = "Payment received, but activation is still being confirmed. Please wait a moment and try again.";
+                    }
+                } catch (error) {
+                    console.error(error);
+                    message.innerText = "Payment received, but verification could not be completed right now. Your payment will be checked automatically.";
+                }
             }
 
         };
