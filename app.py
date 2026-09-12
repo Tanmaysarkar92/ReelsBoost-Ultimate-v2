@@ -1517,17 +1517,10 @@ def receive_message():
                 "from"
             )
 
-            # Payment gate: only active subscribers may use the WhatsApp bot.
-            # Razorpay webhook/verification activates the subscriber record.
+            # Normalize sender before processing.
+            # IMPORTANT: Do not block the WhatsApp video pipeline on payment status.
+            # Razorpay routes/webhooks remain available separately.
             sender = normalize_phone(sender)
-            if not subscription_is_active(sender):
-                send_text_message(
-                    sender,
-                    "🔒 আপনার subscription active নেই।\n\n"
-                    "আগে /payment খুলে Starter / Pro / Business plan-এর একটি subscription complete করুন।\n"
-                    "Payment successful হলে আবার property photo পাঠান। ❤️"
-                )
-                return jsonify({"status": "payment_required"}), 200
 
             # =================================================
             # DUPLICATE MESSAGE CHECK
