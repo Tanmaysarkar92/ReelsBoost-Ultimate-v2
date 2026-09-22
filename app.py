@@ -138,10 +138,10 @@ def verify_subscription():
         payment_id = data.get("razorpay_payment_id", "")
         subscription_id = data.get("razorpay_subscription_id", "")
         signature = data.get("razorpay_signature", "")
-        phone = normalize_phone(data.get("phone", ""))
+        phone = ""
         plan = data.get("plan", "")
 
-        if not all([payment_id, subscription_id, signature, phone]):
+        if not all([payment_id, subscription_id, signature]):
             return jsonify({"success": False, "error": "Missing payment verification data"}), 400
 
         message = f"{payment_id}|{subscription_id}".encode("utf-8")
@@ -156,9 +156,23 @@ def verify_subscription():
             return jsonify({"success": False, "error": "Payment verification failed"}), 400
 
         subscription = razorpay_client.subscription.fetch(subscription_id)
+
+        notes = subscription.get("notes") or {}
+
+        verified_phone = normalize_phone(notes.get("customer_phone"))
+
+        if not verified_phone:
+            return jsonify({
+                "success": False,
+                "error": "Customer WhatsApp number not found"
+            }), 400
+
+        phone = verified_phone
+
         actual_status = subscription.get("status")
         actual_plan_id = subscription.get("plan_id")
         resolved_plan = plan
+
         for name, plan_id in RAZORPAY_PLANS.items():
             if actual_plan_id == plan_id:
                 resolved_plan = name
