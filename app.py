@@ -530,7 +530,7 @@ def generate_ai_caption(image_path):
 
         response = groq_client.chat.completions.create(
 
-            model="qwen/qwen3.6-27b",
+            model="qwen/qwen3.8-27b",
 
             messages=[
                 {
@@ -699,7 +699,7 @@ def generate_youtube_metadata(image_path, property_details=""):
 
         response = groq_client.chat.completions.create(
 
-            model="qwen/qwen3.6-27b",
+            model="qwen/qwen3.8-27b",
 
             messages=[
                 {
