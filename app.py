@@ -69,6 +69,12 @@ def init_database():
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        conn.execute("""
+    CREATE TABLE IF NOT EXISTS processed_messages (
+        message_id TEXT PRIMARY KEY,
+        processed_at TEXT DEFAULT CURRENT_TIMESTAMP
+           )
+       """)
 
         conn.commit()
 
@@ -395,9 +401,7 @@ def razorpay_webhook():
 # ============================================================
 # GLOBALS
 # ============================================================
-
-processed_messages = set()
-
+  
 # Only one heavy video-generation job at a time.
 # This is safer for a small Render instance.
 executor = ThreadPoolExecutor(max_workers=1)
@@ -1536,35 +1540,34 @@ def receive_message():
             # Razorpay routes/webhooks remain available separately.
             sender = normalize_phone(sender)
 
-            # =================================================
-            # DUPLICATE MESSAGE CHECK
-            # =================================================
+                        # ============================================================
+            # DATABASE DUPLICATE MESSAGE PROTECTION
+            # ============================================================
 
-            if message_id in processed_messages:
+            if not message_id:
+                logger.warning("⚠️ WhatsApp message_id missing")
 
+                return jsonify({
+                    "status": "missing_message_id"
+                }), 200
+
+            try:
+                with sqlite3.connect(DATABASE_FILE) as conn:
+                    conn.execute("""
+                        INSERT INTO processed_messages (message_id)
+                        VALUES (?)
+                    """, (message_id,))
+
+                    conn.commit()
+
+            except sqlite3.IntegrityError:
                 logger.info(
-                    f"⚠️ Duplicate Message Ignored: {message_id}"
+                    f"⚠️ Duplicate WhatsApp Message Ignored: {message_id}"
                 )
 
                 return jsonify({
                     "status": "duplicate"
                 }), 200
-
-            processed_messages.add(
-                message_id
-            )
-
-            logger.info(
-                f"🆔 Message ID: {message_id}"
-            )
-
-            logger.info(
-                f"📱 Sender: {sender}"
-            )
-
-            logger.info(
-                f"📦 Message Type: {message_type}"
-            )
 
             # =================================================
             # TEXT MESSAGE
