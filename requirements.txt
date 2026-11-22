@@ -11,9 +11,9 @@ gunicorn
 Pillow
 imageio-ffmpeg
 edge-tts
-razorpay
-
-
-
-
 razorpay==2.0.1
+Flask-Login
+
+
+
+
