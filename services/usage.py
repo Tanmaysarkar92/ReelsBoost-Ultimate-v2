@@ -1,46 +1,39 @@
-import sqlite3
-from contextlib import closing
-from datetime import datetime
-from pathlib import Path
 
-from services.database import SAAS_DB_PATH
+from datetime import datetime
+
+from services.database import get_connection
 from services.plans import PLANS, get_plan
 
 
 def reserve_reel_slot(user_id, db_path=None):
     """Atomically reserve one monthly reel slot for a SaaS user."""
-    database = Path(db_path or SAAS_DB_PATH)
     month = datetime.now().strftime("%Y-%m")
 
-    with closing(sqlite3.connect(database, timeout=10)) as conn:
+    with get_connection() as conn:
         try:
-            conn.execute("BEGIN IMMEDIATE")
-
             user = conn.execute(
                 """
                 SELECT plan, subscription_status
                 FROM users
-                WHERE id = ?
+                WHERE id = %s
+                FOR UPDATE
                 """,
                 (user_id,),
             ).fetchone()
 
             if not user:
-                conn.rollback()
                 return {"allowed": False, "error": "user_not_found"}
 
-            plan_name, subscription_status = user
-            plan_name = str(plan_name or "").strip().lower()
+            plan_name = str(user["plan"] or "").strip().lower()
+            subscription_status = user["subscription_status"]
 
             if plan_name not in PLANS:
-                conn.rollback()
                 return {"allowed": False, "error": "invalid_plan"}
 
             if plan_name != "free" and subscription_status not in (
                 "active",
                 "authenticated",
             ):
-                conn.rollback()
                 return {
                     "allowed": False,
                     "error": "subscription_inactive",
@@ -52,19 +45,19 @@ def reserve_reel_slot(user_id, db_path=None):
                 """
                 SELECT id, reels_used
                 FROM usage
-                WHERE user_id = ? AND month = ?
+                WHERE user_id = %s AND month = %s
                 ORDER BY id DESC
                 LIMIT 1
+                FOR UPDATE
                 """,
                 (user_id, month),
             ).fetchone()
 
             if usage:
-                usage_id, used = usage
-                used = int(used or 0)
+                usage_id = usage["id"]
+                used = int(usage["reels_used"] or 0)
 
                 if used >= limit:
-                    conn.rollback()
                     return {
                         "allowed": False,
                         "error": "monthly_limit_reached",
@@ -76,9 +69,9 @@ def reserve_reel_slot(user_id, db_path=None):
                     """
                     UPDATE usage
                     SET reels_used = reels_used + 1,
-                        reels_limit = ?,
+                        reels_limit = %s,
                         updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
+                    WHERE id = %s
                     """,
                     (limit, usage_id),
                 )
@@ -90,12 +83,10 @@ def reserve_reel_slot(user_id, db_path=None):
                     """
                     INSERT INTO usage
                         (user_id, reels_used, reels_limit, month)
-                    VALUES (?, 1, ?, ?)
+                    VALUES (%s, 1, %s, %s)
                     """,
                     (user_id, limit, month),
                 )
-
-            conn.commit()
 
             return {
                 "allowed": True,
@@ -107,5 +98,4 @@ def reserve_reel_slot(user_id, db_path=None):
             }
 
         except Exception:
-            conn.rollback()
             raise
