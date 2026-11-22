@@ -13,7 +13,7 @@ imageio-ffmpeg
 edge-tts
 razorpay==2.0.1
 Flask-Login
-
+psycopg[binary]
 
 
 
