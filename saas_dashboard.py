@@ -47,9 +47,9 @@ def dashboard():
 
         usage = db.execute(
             """
-            SELECT COALESCE(SUM(quantity), 0) AS total
-            FROM usage
-            WHERE user_id = ? AND period = ?
+           SELECT COALESCE(SUM(reels_used), 0)
+           FROM usage
+           WHERE user_id = ? AND month = ?
             """,
             (user_id, current_period)
         ).fetchone()
