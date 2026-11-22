@@ -1,7 +1,7 @@
-import re
-import sqlite3
-from functools import wraps
 
+import re
+
+import psycopg
 from flask import Blueprint, request, jsonify, session
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -34,28 +34,30 @@ def signup():
         with get_db() as db:
             cursor = db.execute(
                 """
-                INSERT INTO users (email, password_hash, name)
-                VALUES (?, ?, ?)
+                INSERT INTO users
+                    (email, password_hash, name, plan, subscription_status)
+                VALUES (%s, %s, %s, 'free', 'active')
+                RETURNING id
                 """,
-                (email, password_hash, name)
+                (email, password_hash, name),
             )
 
-            user_id = cursor.lastrowid
+            user_id = cursor.fetchone()["id"]
 
             db.execute(
                 """
                 INSERT INTO subscriptions (user_id, plan, status)
-                VALUES (?, 'free', 'active')
+                VALUES (%s, 'free', 'active')
                 """,
-                (user_id,)
+                (user_id,),
             )
 
         return jsonify({
             "message": "Account created successfully",
-            "user_id": user_id
+            "user_id": user_id,
         }), 201
 
-    except sqlite3.IntegrityError:
+    except psycopg.errors.UniqueViolation:
         return jsonify({"error": "Email already registered"}), 409
 
 
@@ -68,11 +70,17 @@ def login():
 
     with get_db() as db:
         user = db.execute(
-            "SELECT id, email, password_hash, name FROM users WHERE email = ?",
-            (email,)
+            """
+            SELECT id, email, password_hash, name
+            FROM users
+            WHERE email = %s
+            """,
+            (email,),
         ).fetchone()
 
-    if not user or not check_password_hash(user["password_hash"], password):
+    if not user or not check_password_hash(
+        user["password_hash"] or "", password
+    ):
         return jsonify({"error": "Invalid email or password"}), 401
 
     session.clear()
@@ -83,8 +91,8 @@ def login():
         "user": {
             "id": user["id"],
             "email": user["email"],
-            "name": user["name"]
-        }
+            "name": user["name"],
+        },
     })
 
 
@@ -103,8 +111,12 @@ def me():
 
     with get_db() as db:
         user = db.execute(
-            "SELECT id, email, name FROM users WHERE id = ?",
-            (user_id,)
+            """
+            SELECT id, email, name
+            FROM users
+            WHERE id = %s
+            """,
+            (user_id,),
         ).fetchone()
 
     if not user:
@@ -114,5 +126,6 @@ def me():
     return jsonify({
         "id": user["id"],
         "email": user["email"],
-        "name": user["name"]
+        "name": user["name"],
     })
+
