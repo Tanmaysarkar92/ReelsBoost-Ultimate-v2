@@ -1,22 +1,5 @@
 
-from contextlib import contextmanager
-
-from services.database import get_connection, init_database
-
-
-@contextmanager
-def get_db():
-    init_database()
-    connection = get_connection()
-
-    try:
-        yield connection
-        connection.commit()
-    except Exception:
-        connection.rollback()
-        raise
-    finally:
-        connection.close()
+from services.database import get_db, init_database
 
 
 def init_db():
@@ -25,5 +8,6 @@ def init_db():
 
 if __name__ == "__main__":
     init_db()
-    print("ReelsBoost SaaS database initialized.")
+    print("ReelsBoost PostgreSQL database initialized.")
+
 
