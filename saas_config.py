@@ -26,10 +26,10 @@ SUBSCRIPTION_PLANS = {
         "price_usd": 49,
         "monthly_reels": 100,
     },
-    "agency": {
-        "price_usd": 149,
-        "monthly_reels": 300,
-    },
+    "business": {
+    "price_usd": 149,
+    "monthly_reels": 300,
+   },
 }
 
 # Payment providers
