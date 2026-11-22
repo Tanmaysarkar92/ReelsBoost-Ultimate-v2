@@ -56,12 +56,12 @@ def dashboard():
 
     plan = subscription["plan"] if subscription else "free"
 
-    plan_limits = {
-        "free": 3,
-        "starter": 20,
-        "pro": 100,
-        "agency": 300,
-    }
+   limits = {
+    "free": 3,
+    "starter": 20,
+    "pro": 100,
+    "business": 300
+}
 
     monthly_limit = plan_limits.get(plan, 3)
     reels_used = usage["total"] if usage else 0
