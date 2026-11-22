@@ -10,6 +10,13 @@ saas_dashboard = Blueprint(
     url_prefix="/api/dashboard"
 )
 
+PLAN_LIMITS = {
+    "free": 3,
+    "starter": 20,
+    "pro": 100,
+    "business": 300,
+}
+
 
 @saas_dashboard.route("/", methods=["GET"])
 def dashboard():
@@ -25,7 +32,7 @@ def dashboard():
             """
             SELECT id, email, name, created_at
             FROM users
-            WHERE id = ?
+            WHERE id = %s
             """,
             (user_id,)
         ).fetchone()
@@ -38,7 +45,7 @@ def dashboard():
             """
             SELECT plan, status, provider, current_period_end
             FROM subscriptions
-            WHERE user_id = ?
+            WHERE user_id = %s
             ORDER BY id DESC
             LIMIT 1
             """,
@@ -47,24 +54,20 @@ def dashboard():
 
         usage = db.execute(
             """
-           SELECT COALESCE(SUM(reels_used), 0)
-           FROM usage
-           WHERE user_id = ? AND month = ?
+            SELECT COALESCE(SUM(reels_used), 0) AS total
+            FROM usage
+            WHERE user_id = %s AND month = %s
             """,
             (user_id, current_period)
         ).fetchone()
 
-    plan = subscription["plan"] if subscription else "free"
+    plan = (
+        subscription["plan"]
+        if subscription else "free"
+    )
 
-   limits = {
-    "free": 3,
-    "starter": 20,
-    "pro": 100,
-    "business": 300
-}
-
-    monthly_limit = plan_limits.get(plan, 3)
-    reels_used = usage["total"] if usage else 0
+    monthly_limit = PLAN_LIMITS.get(plan, 3)
+    reels_used = int(usage["total"] or 0) if usage else 0
 
     return jsonify({
         "user": {
@@ -95,3 +98,4 @@ def dashboard():
             "analytics": True,
         }
     })
+
