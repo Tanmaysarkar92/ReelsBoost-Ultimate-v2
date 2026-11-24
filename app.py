@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from groq import Groq
 import base64
 import razorpay
-
+from saas_database import init_db as init_saas_db
 from config import (
     VERIFY_TOKEN,
     META_ACCESS_TOKEN,
@@ -90,8 +90,18 @@ from whatsapp import (
 # APP
 # ============================================================
 
-app = Flask(__name__)
+from saas_auth import saas_auth
+from saas_dashboard import saas_dashboard
+from saas_agent import saas_agent
+from saas_content_studio import content_studio
 
+app = Flask(__name__)
+app.config["SECRET_KEY"] = os.environ["FLASK_SECRET_KEY"]
+app.register_blueprint(saas_auth)
+app.register_blueprint(saas_dashboard)
+app.register_blueprint(saas_agent)
+app.register_blueprint(content_studio)
+init_saas_db()
 @app.route("/payment", methods=["GET"])
 def payment_page():
     return render_template(
